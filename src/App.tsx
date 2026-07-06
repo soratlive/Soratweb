@@ -501,7 +501,7 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authType, setAuthType] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({
-    email: '',
+    mobile: '',
     password: '',
     displayName: ''
   });
@@ -1191,7 +1191,11 @@ export default function App() {
 
   // --- Admin Logic ---
   const isAdminAuthorized = useMemo(() => {
-    return currentUser?.email === 'nikhilrv8055@gmail.com' || userProfile?.role === 'admin';
+    if (!currentUser) return false;
+    const emailStr = currentUser.email || '';
+    const isOwnerMobile = emailStr === '9049583034@sorat.live' || userProfile?.mobile === '9049583034';
+    const isOwnerEmail = emailStr === 'nikhilrv8055@gmail.com';
+    return isOwnerMobile || isOwnerEmail;
   }, [currentUser, userProfile]);
 
   const fetchAdminData = async (force = false) => {
@@ -1323,9 +1327,12 @@ export default function App() {
         }
         setLastFetch(prev => ({ ...prev, profile: now }));
       } else {
+        const isMobileEmail = user.email?.endsWith('@sorat.live');
+        const mobileNum = isMobileEmail ? user.email?.split('@')[0] : '';
         const newProfile = {
           userId: user.uid,
           email: user.email,
+          mobile: mobileNum || '',
           displayName: user.displayName || user.email?.split('@')[0] || 'Player',
           name: user.displayName || user.email?.split('@')[0] || 'Player',
           balance: 0,
@@ -2620,9 +2627,16 @@ export default function App() {
     if (isAuthLoading) return;
     
     setIsAuthLoading(true);
-    const emailStr = authForm.email.toLowerCase().trim();
+    const cleanMobile = authForm.mobile.replace(/\s+/g, '').trim();
+    if (!/^\d{10}$/.test(cleanMobile)) {
+      addNotification("Please enter a valid 10-digit mobile number.", 'info');
+      setIsAuthLoading(false);
+      return;
+    }
+
+    const emailStr = `${cleanMobile}@sorat.live`;
     const passwordStr = authForm.password;
-    const nameStr = authForm.displayName.trim() || emailStr.split('@')[0] || 'Player';
+    const nameStr = authForm.displayName.trim() || `Player ${cleanMobile.slice(-4)}`;
 
     try {
       if (authType === 'register') {
@@ -2634,7 +2648,7 @@ export default function App() {
         addNotification("Logged in successfully!", 'win');
       }
       setIsAuthModalOpen(false);
-      setAuthForm({ email: '', password: '', displayName: '' });
+      setAuthForm({ mobile: '', password: '', displayName: '' });
       setShowPassword(false);
       setIsProfileOpen(false);
     } catch (error: any) {
@@ -2643,15 +2657,15 @@ export default function App() {
       let friendlyMsg = error?.message || 'Login failed. Please try again.';
       
       if (code.includes('invalid-email')) {
-        friendlyMsg = "Invalid email format! Please check your email.";
+        friendlyMsg = "Invalid mobile number format!";
       } else if (code.includes('user-not-found')) {
-        friendlyMsg = "Account not found! Please check or sign up.";
+        friendlyMsg = "Mobile number not registered! Please sign up.";
       } else if (code.includes('wrong-password')) {
         friendlyMsg = "Incorrect password! Please check.";
       } else if (code.includes('invalid-credential')) {
-        friendlyMsg = "Incorrect email or password. Please try again.";
+        friendlyMsg = "Incorrect mobile number or password. Please try again.";
       } else if (code.includes('email-already-in-use')) {
-        friendlyMsg = "This email is already registered! Please login instead.";
+        friendlyMsg = "This mobile number is already registered! Please login instead.";
       } else if (code.includes('weak-password')) {
         friendlyMsg = "Password must be at least 6 characters long.";
       } else if (code.includes('network-request-failed')) {
@@ -5306,38 +5320,6 @@ $$;`}
                 </div>
 
                 <div className="space-y-4">
-                  <button 
-                    onClick={async () => {
-                      try {
-                        await signInWithGoogle();
-                        setIsAuthModalOpen(false);
-                        setIsProfileOpen(false);
-                        addNotification("Logged in with Google!", "win");
-                      } catch (err: any) {
-                        console.error("Google Sign-In Error: ", err);
-                        const errCode = err?.code || "";
-                        if (errCode === "auth/unauthorized-domain") {
-                          addNotification("Error: Netlify URL is not authorized in Firebase! Settings > Authorized Domains me Netlify URL add karein.", "info");
-                        } else if (errCode === "auth/popup-blocked") {
-                          addNotification("Popup blocked! Apne browser me popups allow karein.", "info");
-                        } else if (errCode === "auth/popup-closed-by-user" || errCode === "auth/cancelled-popup-request") {
-                          addNotification("Sign-in cancelled by user.", "info");
-                        } else {
-                          addNotification("Sign-In failed: " + (err?.message || "Unknown error"), "info");
-                        }
-                      }
-                    }}
-                    className="w-full bg-slate-900 hover:bg-slate-850 p-4 rounded-xl flex items-center justify-center gap-3 border border-white/10 transition-all font-black uppercase tracking-wider text-xs text-white"
-                  >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                    <span>Continue With Google</span>
-                  </button>
-
-                  <div className="relative flex items-center justify-center my-2">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                    <span className="relative bg-slate-950 px-4 text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">Or use game credentials</span>
-                  </div>
-
                   <form onSubmit={handleEmailPasswordAuth} className="space-y-4">
                     {authType === 'register' && (
                       <div className="flex flex-col gap-1.5">
@@ -5354,15 +5336,17 @@ $$;`}
                       </div>
                     )}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[9px] text-slate-500 uppercase font-black tracking-widest pl-1">Email Address</label>
+                      <label className="text-[9px] text-slate-500 uppercase font-black tracking-widest pl-1">Mobile Number</label>
                       <input 
                         required
                         disabled={isAuthLoading}
-                        type="email"
+                        type="tel"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
                         className="bg-slate-900 border border-white/5 rounded-xl px-4 py-3.5 text-sm focus:border-blue-500 outline-none transition-all disabled:opacity-50 text-white font-bold"
-                        placeholder="you@domain.com"
-                        value={authForm.email}
-                        onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                        placeholder="Enter 10-digit mobile number"
+                        value={authForm.mobile}
+                        onChange={(e) => setAuthForm({...authForm, mobile: e.target.value.replace(/\D/g, '')})}
                       />
                     </div>
                     <div className="flex flex-col gap-1.5 relative">
@@ -5426,7 +5410,11 @@ $$;`}
                   </div>
                   <div>
                     <h2 className="text-sm font-black tracking-tight text-white uppercase">Profile & Wallet</h2>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{currentUser?.email || 'Guest User'}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                      {currentUser?.email?.endsWith('@sorat.live') 
+                        ? `Mobile: ${currentUser.email.split('@')[0]}` 
+                        : (currentUser?.email || 'Guest User')}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -5452,8 +5440,14 @@ $$;`}
                     <User size={32} />
                     <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-slate-900" />
                   </div>
-                  <h2 className="text-2xl font-black text-white tracking-tighter uppercase">{currentUser?.email?.split('@')[0] || 'Member'}</h2>
-                  <span className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-60 italic">{currentUser?.email}</span>
+                  <h2 className="text-2xl font-black text-white tracking-tighter uppercase">
+                    {userProfile?.displayName || (currentUser?.email?.endsWith('@sorat.live') ? currentUser.email.split('@')[0] : 'Member')}
+                  </h2>
+                  <span className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-60 italic">
+                    {currentUser?.email?.endsWith('@sorat.live') 
+                      ? `Mobile: ${currentUser.email.split('@')[0]}` 
+                      : currentUser?.email}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-white/5">
