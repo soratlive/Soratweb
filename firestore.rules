@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && 
+             (request.auth.token.email == 'nikhilrv8055@gmail.com' || 
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'));
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return data.userId == request.auth.uid &&
+             data.email is string && data.email.size() <= 100 &&
+             data.balance is number && data.balance >= 0;
+    }
+
+    function isValidDeposit(data) {
+      return data.userId == request.auth.uid &&
+             data.amount is number && data.amount >= 10 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.method is string &&
+             (data.get('screenshotUrl', '') is string) &&
+             (data.get('dealerId', '') is string);
+    }
+
+    function isValidDealer(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.whatsapp is string && data.whatsapp.size() <= 20 &&
+             data.isActive is bool &&
+             (data.get('qrUrl', '') is string && data.get('qrUrl', '').size() <= 1000) &&
+             (data.get('upiId', '') is string && data.get('upiId', '').size() <= 100);
+    }
+
+    function isValidWithdrawal(data) {
+      return data.userId == request.auth.uid &&
+             data.amount is number && data.amount >= 100 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (data.get('bankDetails', null) == null || data.bankDetails is map);
+    }
+
+    function isValidGame(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.isActive is bool &&
+             data.minBet is number &&
+             data.maxBet is number &&
+             data.multiplier is number &&
+             data.timerDuration is number;
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming());
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        isValidId(userId) &&
+        isValidUser(incoming()) && 
+        incoming().get('role', 'user') == existing().get('role', 'user') &&
+        incoming().userId == existing().userId &&
+        (
+          incoming().diff(existing()).affectedKeys().hasAny(['bankDetails', 'displayName', 'balance'])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /depositRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidDeposit(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /withdrawalRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidWithdrawal(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /dealers/{dealerId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() && isValidDealer(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /gameRounds/{roundId} {
+      allow read, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /games/{gameId} {
+      allow read, list: if true;
+      allow create, update: if isAdmin() && isValidGame(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /game/currentRound {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        incoming().diff(existing()).affectedKeys().size() == 1
+      );
+    }
+
+    match /settings/global {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /paymentSettings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /leaderboard/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

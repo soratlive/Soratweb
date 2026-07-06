@@ -1,0 +1,39 @@
+{
+  "name": "Sorat Live Gaming",
+  "short_name": "Sorat Live",
+  "start_url": "/",
+  "id": "com.sorat.live",
+  "display": "standalone",
+  "description": "Premium Slot Gaming Experience with Real-time Sorat Game",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=1000",
+      "sizes": "1000x667",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Game Lobby"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=1000",
+      "sizes": "1000x667",
+      "type": "image/jpeg",
+      "label": "Game Lobby"
+    }
+  ]
+}

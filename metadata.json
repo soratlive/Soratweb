@@ -1,0 +1,8 @@
+{
+  "name": "Sorat",
+  "description": "Multiplayer Indian Sorat. Experience live betting with Sorat style mechanics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

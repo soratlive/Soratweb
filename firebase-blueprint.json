@@ -1,0 +1,181 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile including game balance and banking info.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "balance": { "type": "number" },
+        "bankDetails": {
+          "type": "object",
+          "properties": {
+            "accountNumber": { "type": "string" },
+            "ifscCode": { "type": "string" },
+            "bankName": { "type": "string" },
+            "accountHolder": { "type": "string" }
+          }
+        },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["userId", "email", "balance"]
+    },
+    "GameRound": {
+      "title": "Game Round",
+      "description": "Historical data for a completed game round.",
+      "type": "object",
+      "properties": {
+        "winnerId": { "type": "integer" },
+        "totalPool": { "type": "number" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "WithdrawalRequest": {
+      "title": "Withdrawal Request",
+      "description": "User request to withdraw funds.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "bankDetails": { "$ref": "User/properties/bankDetails" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["userId", "amount", "status", "timestamp"]
+    },
+    "DepositRequest": {
+      "title": "Deposit Request",
+      "description": "User request to deposit funds using offline methods.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "screenshotUrl": { "type": "string" },
+        "dealerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["userId", "amount", "method", "status", "timestamp"]
+    },
+    "Dealer": {
+      "title": "Dealer",
+      "description": "Person who handles manual payments.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "upiId": { "type": "string" },
+        "qrUrl": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "whatsapp", "isActive"]
+    },
+    "LeaderboardEntry": {
+      "title": "Leaderboard Entry",
+      "description": "Publicly visible stats for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "totalWinnings": { "type": "number" },
+        "highestWin": { "type": "number" },
+        "rank": { "type": "integer" }
+      },
+      "required": ["userId", "totalWinnings", "highestWin"]
+    },
+    "SystemSettings": {
+      "title": "System Settings",
+      "description": "Global application configuration.",
+      "type": "object",
+      "properties": {
+        "upiId": { "type": "string" },
+        "appLogoUrl": { "type": "string" },
+        "multiplier": { "type": "number" },
+        "timerDuration": { "type": "number" },
+        "isPaused": { "type": "boolean" },
+        "updateInfo": {
+          "type": "object",
+          "properties": {
+            "version": { "type": "string" },
+            "message": { "type": "string" },
+            "forceUpdate": { "type": "boolean" },
+            "showPopup": { "type": "boolean" }
+          }
+        },
+        "notifications": {
+          "type": "object",
+          "properties": {
+            "winMessageTemplate": { "type": "string" },
+            "betMessageTemplate": { "type": "string" },
+            "enableWinNotifications": { "type": "boolean" },
+            "enableInfoNotifications": { "type": "boolean" },
+            "enableBetNotifications": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "PoolState": {
+      "title": "Pool State",
+      "description": "Real-time pool totals per slot for the current round.",
+      "type": "object",
+      "properties": {
+        "slot_1": { "type": "number" },
+        "slot_2": { "type": "number" },
+        "slot_3": { "type": "number" },
+        "slot_4": { "type": "number" },
+        "slot_5": { "type": "number" },
+        "slot_6": { "type": "number" },
+        "slot_7": { "type": "number" },
+        "slot_8": { "type": "number" },
+        "slot_9": { "type": "number" },
+        "slot_10": { "type": "number" },
+        "slot_11": { "type": "number" },
+        "slot_12": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/global": {
+      "schema": "SystemSettings",
+      "description": "Global application configuration document."
+    },
+    "/game/currentRound": {
+      "schema": "PoolState",
+      "description": "Real-time global pool amounts for all slots."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Storage for user profiles."
+    },
+    "/game Rounds/{roundId}": {
+      "schema": "GameRound",
+      "description": "History of game rounds."
+    },
+    "/withdrawalRequests/{requestId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Withdrawal requests for admin approval."
+    },
+    "/dealers/{dealerId}": {
+      "schema": "Dealer",
+      "description": "Dealers who handle manual payments."
+    },
+    "/depositRequests/{requestId}": {
+      "schema": "DepositRequest",
+      "description": "Deposit requests for admin approval."
+    },
+    "/leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Publicly visible user stats for the leaderboard."
+    },
+    "/games/{gameId}": {
+      "schema": "SystemSettings",
+      "description": "Configuration for different game rooms or types."
+    }
+  }
+}
