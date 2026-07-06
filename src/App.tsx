@@ -2682,7 +2682,7 @@ export default function App() {
       <div className={`w-full max-w-[450px] landscape:max-w-[1000px] mx-auto h-full border-x ${isDemoMode ? 'border-yellow-900/30 bg-[#292212]' : 'border-slate-800 bg-slate-950'} relative flex flex-col landscape:flex-row transition-colors duration-1000 uppercase overflow-hidden`}>
         
         {/* Left Side Controls & Navigation Panel */}
-        <div className="contents landscape:flex landscape:flex-col landscape:w-[340px] landscape:h-full landscape:border-r landscape:border-slate-800/40 shrink-0 landscape:overflow-y-auto landscape:custom-scrollbar">
+        <div className="contents landscape:flex landscape:flex-col landscape:w-[260px] landscape:h-full landscape:border-r landscape:border-slate-800/40 shrink-0 landscape:overflow-y-auto landscape:custom-scrollbar">
         
         {/* Demo Mode Banner */}
         <AnimatePresence>
@@ -2727,9 +2727,11 @@ export default function App() {
 
         {/* Header */}
         <header className={`relative z-20 shrink-0 ${isDemoMode ? 'bg-yellow-900/90 border-yellow-500/20' : 'bg-slate-900/95 border-white/5'} backdrop-blur-xl border-b shadow-2xl transition-all duration-1000`}>
-          {/* Top Row: Brand & Balance */}
-          <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex justify-between items-center">
-            <div className="flex items-center gap-2">
+          {/* Stacked on landscape, flex-row on mobile */}
+          <div className="px-3 py-2 sm:px-4 sm:py-2.5 flex flex-row landscape:flex-col justify-between items-center landscape:items-stretch gap-2 landscape:gap-1.5 landscape:px-2.5 landscape:py-2">
+            
+            {/* Top Row: Brand & Menu on Mobile, or stacked row 1 on Landscape */}
+            <div className="flex items-center justify-between landscape:w-full">
               <div className="flex items-center gap-1.5">
                 <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center shadow-lg border border-white/10 overflow-hidden shrink-0">
                   {adminState.appLogoUrl ? (
@@ -2739,54 +2741,67 @@ export default function App() {
                   )}
                 </div>
                 <h1 className="text-lg font-black text-white tracking-tighter italic">SORAT</h1>
-              </div>
-              <div className="h-3 w-[1px] bg-white/10" />
-              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-950/50 border border-white/5">
-                <div className="relative">
-                  <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                  <div className="absolute top-0 left-0 w-1 h-1 bg-red-500 rounded-full animate-ping opacity-75" />
+                <div className="h-3 w-[1px] bg-white/10" />
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-950/50 border border-white/5">
+                  <div className="relative">
+                    <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                    <div className="absolute top-0 left-0 w-1 h-1 bg-red-500 rounded-full animate-ping opacity-75" />
+                  </div>
+                  <span className="text-[6px] font-black tracking-wider text-slate-400 uppercase">Live</span>
                 </div>
-                <span className="text-[6px] font-black tracking-wider text-slate-400 uppercase">Live</span>
+              </div>
+
+              {/* Hamburger menu on landscape (top right) */}
+              <div className="hidden landscape:block">
+                <button 
+                  onClick={() => setIsMenuOpen(true)}
+                  className="p-1.5 bg-slate-950/60 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                  title="Open Menu"
+                >
+                  <Menu size={16} />
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex bg-slate-950 p-0.5 rounded-lg border border-white/5">
-                  <button 
-                    onClick={() => setIsDemoMode(false)}
-                    className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${!isDemoMode ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    Real
-                  </button>
-                  <button 
-                    onClick={() => setIsDemoMode(true)}
-                    className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${isDemoMode ? 'bg-yellow-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    Demo
-                  </button>
-                </div>
+            {/* Bottom Row: Balance, Real/Demo switches on Mobile, or stacked row 2 on Landscape */}
+            <div className="flex items-center gap-2 landscape:w-full landscape:justify-between">
+              <div className="flex bg-slate-950 p-0.5 rounded-lg border border-white/5 shrink-0">
                 <button 
-                  onClick={() => {
-                    setProfileTab('deposit');
-                    setIsProfileOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 bg-slate-950/60 hover:bg-slate-900 px-2.5 py-1 rounded-xl border border-white/10 group transition-all duration-300 active:scale-95 cursor-pointer text-left"
-                  title="Wallet Deposit and Withdrawal options"
+                  onClick={() => setIsDemoMode(false)}
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${!isDemoMode ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <Wallet size={12} className={`transition-transform duration-300 group-hover:scale-110 ${isDemoMode ? "text-yellow-500 animate-pulse" : "text-emerald-500"}`} />
-                  <span className="text-sm font-black tracking-tight text-white italic group-hover:text-emerald-400 transition-colors">₹{(isDemoMode ? demoBalance : balance).toLocaleString()}</span>
+                  Real
+                </button>
+                <button 
+                  onClick={() => setIsDemoMode(true)}
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${isDemoMode ? 'bg-yellow-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  Demo
                 </button>
               </div>
 
-              {/* Hamburger Menu Button */}
               <button 
-                onClick={() => setIsMenuOpen(true)}
-                className="p-2 sm:p-2.5 bg-slate-950/60 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
-                title="Open Menu"
+                onClick={() => {
+                  setProfileTab('deposit');
+                  setIsProfileOpen(true);
+                }}
+                className="flex items-center gap-1 bg-slate-950/60 hover:bg-slate-900 px-2 py-1 rounded-xl border border-white/10 group transition-all duration-300 active:scale-95 cursor-pointer text-left shrink-0"
+                title="Wallet Deposit and Withdrawal options"
               >
-                <Menu size={18} />
+                <Wallet size={11} className={`transition-transform duration-300 group-hover:scale-110 ${isDemoMode ? "text-yellow-500 animate-pulse" : "text-emerald-500"}`} />
+                <span className="text-[11px] sm:text-xs font-black tracking-tight text-white italic group-hover:text-emerald-400 transition-colors">₹{(isDemoMode ? demoBalance : balance).toLocaleString()}</span>
               </button>
+
+              {/* Hamburger menu on Mobile */}
+              <div className="landscape:hidden">
+                <button 
+                  onClick={() => setIsMenuOpen(true)}
+                  className="p-2 bg-slate-950/60 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                  title="Open Menu"
+                >
+                  <Menu size={18} />
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -2852,10 +2867,10 @@ export default function App() {
         </div>
 
         {/* Bet Amount Selector */}
-        <div className="px-3 py-1.5 bg-slate-900/40 border-y border-white/5 shrink-0 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+        <div className="px-3 py-1.5 bg-slate-900/40 border-y border-white/5 shrink-0 flex flex-row landscape:flex-col items-center landscape:items-stretch justify-between gap-2">
+          <div className="flex items-center justify-between landscape:w-full">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Stakes:</span>
-            <div className="flex items-center gap-0.5 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-white/5 max-w-[65px]">
+            <div className="flex items-center gap-0.5 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-white/5 max-w-[65px] landscape:max-w-[80px]">
               <span className="text-[10px] font-black text-yellow-500">₹</span>
               <input 
                 type="number" 
@@ -2865,12 +2880,12 @@ export default function App() {
               />
             </div>
           </div>
-          <div className="flex-1 flex gap-1 justify-end">
+          <div className="flex-1 flex gap-1 justify-end landscape:justify-between landscape:grid landscape:grid-cols-5 landscape:gap-1">
             {[100, 200, 500, 1000, 5000].map(amt => (
               <button 
                 key={amt}
                 onClick={() => setBetAmount(amt)}
-                className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all border ${betAmount === amt ? 'bg-yellow-500 text-slate-950 border-yellow-500 shadow-md shadow-yellow-500/20 scale-105' : 'bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800'}`}
+                className={`px-2 py-1 landscape:py-1.5 rounded-lg text-[9px] font-black transition-all border ${betAmount === amt ? 'bg-yellow-500 text-slate-950 border-yellow-500 shadow-md shadow-yellow-500/20 scale-105' : 'bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800'} text-center`}
               >
                 {amt >= 1000 ? `${amt/1000}K` : amt}
               </button>
@@ -2896,54 +2911,6 @@ export default function App() {
                 onBet={handleBet}
               />
             ))}
-          </div>
-
-
-
-          {/* Compliance & Legal Footer */}
-          <div className="mt-8 mb-4 px-4 py-8 border-t border-white/5 flex flex-col items-center gap-4 text-center">
-            <div className="space-y-1">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">Sorat Live Entertainment</h4>
-              <p className="text-[8px] font-bold text-slate-600 uppercase tracking-wider">Officially Approved Game Platform</p>
-            </div>
-            
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-1">
-              <button 
-                type="button"
-                onClick={() => setSelectedPolicyType('terms')}
-                className="text-[9px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest cursor-pointer"
-              >
-                T&C / Rules
-              </button>
-              
-              <button 
-                type="button"
-                onClick={() => setSelectedPolicyType('privacy')}
-                className="text-[9px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest cursor-pointer"
-              >
-                Privacy Policy
-              </button>
-              
-              <button 
-                type="button"
-                onClick={() => setSelectedPolicyType('refund')}
-                className="text-[9px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest cursor-pointer"
-              >
-                Refund Policy
-              </button>
-
-              <button 
-                type="button"
-                onClick={() => setSelectedPolicyType('contact')}
-                className="text-[9px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest cursor-pointer"
-              >
-                Contact Us
-              </button>
-            </div>
-
-            <p className="text-[7.5px] font-bold text-slate-700 uppercase tracking-widest mt-2 leading-loose">
-              © 2026 Sorat Live Ltd. All rights reserved. • Bihar, India Support
-            </p>
           </div>
         </main>
 
@@ -5722,6 +5689,63 @@ $$;`}
                     >
                       SAVE PROFILE SETTINGS
                     </button>
+
+                    {/* Legal & Compliance Support Section */}
+                    <div className="bg-slate-950 p-5 rounded-3xl border border-white/5 space-y-4 text-center">
+                      <div className="flex items-center gap-2 border-b border-white/5 pb-2 justify-center">
+                        <ShieldCheck size={16} className="text-blue-400" />
+                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sorat Live Entertainment</h3>
+                      </div>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider leading-relaxed -mt-1">
+                        Officially Approved Game Platform
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSelectedPolicyType('terms');
+                          }}
+                          className="py-3 px-2 bg-slate-900 hover:bg-slate-850 border border-white/5 hover:border-blue-500/50 rounded-2xl text-[9px] font-black text-blue-400 hover:text-blue-300 transition-all uppercase tracking-wider cursor-pointer"
+                        >
+                          T&C / Rules
+                        </button>
+                        
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSelectedPolicyType('privacy');
+                          }}
+                          className="py-3 px-2 bg-slate-900 hover:bg-slate-850 border border-white/5 hover:border-blue-500/50 rounded-2xl text-[9px] font-black text-blue-400 hover:text-blue-300 transition-all uppercase tracking-wider cursor-pointer"
+                        >
+                          Privacy Policy
+                        </button>
+                        
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSelectedPolicyType('refund');
+                          }}
+                          className="py-3 px-2 bg-slate-900 hover:bg-slate-850 border border-white/5 hover:border-blue-500/50 rounded-2xl text-[9px] font-black text-blue-400 hover:text-blue-300 transition-all uppercase tracking-wider cursor-pointer"
+                        >
+                          Refund Policy
+                        </button>
+
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSelectedPolicyType('contact');
+                          }}
+                          className="py-3 px-2 bg-slate-900 hover:bg-slate-850 border border-white/5 hover:border-blue-500/50 rounded-2xl text-[9px] font-black text-blue-400 hover:text-blue-300 transition-all uppercase tracking-wider cursor-pointer"
+                        >
+                          Contact Support
+                        </button>
+                      </div>
+
+                      <p className="text-[7.5px] font-bold text-slate-700 uppercase tracking-widest mt-2 leading-loose">
+                        © 2026 Sorat Live Ltd. All rights reserved. <br/> Bihar, India Support
+                      </p>
+                    </div>
                   </div>
                 )}
 
