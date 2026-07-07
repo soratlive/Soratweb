@@ -709,6 +709,9 @@ export default function App() {
   };
 
   // --- Error Handling Wrapper ---
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [hasAcknowledgedQuota, setHasAcknowledgedQuota] = useState(false);
+
   const handleAppError = (error: any, operation: OperationType, path: string | null) => {
     const errorString = error instanceof Error ? error.message : JSON.stringify(error);
     const isOffline = errorString.toLowerCase().includes('offline') || 
@@ -732,7 +735,11 @@ export default function App() {
     if (errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('exhausted')) {
       if (!isQuotaExceeded) {
         setIsQuotaExceeded(true);
-        console.error("CRITICAL: Firestore Quota Exceeded. App entering limited mode.");
+        if (!hasAcknowledgedQuota) {
+          setShowQuotaModal(true);
+        }
+        console.warn("Resilient fallback: Firestore Quota Exceeded. App entering limited/demo mode.");
+        setIsDemoMode(true);
       }
     } else {
       handleFirestoreError(error, operation, path);
@@ -1843,16 +1850,16 @@ export default function App() {
       }
 
       if (remainingSeconds <= 0) {
-        if (isFirestoreOffline || dbConnectionStatus === 'Disconnected') {
+        if (isFirestoreOffline || dbConnectionStatus === 'Disconnected' || isQuotaExceeded) {
           triggerStateTransitionOffline();
-        } else if (!isQuotaExceeded) {
+        } else {
           triggerStateTransitionIfNeeded();
         }
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timerEndTime, phase, adminState.isPaused, isFirestoreOffline, dbConnectionStatus]);
+  }, [timerEndTime, phase, adminState.isPaused, isFirestoreOffline, dbConnectionStatus, isQuotaExceeded]);
 
   // Update live prediction for Admin (Lowest Pool)
   useEffect(() => {
@@ -7323,7 +7330,7 @@ $$;`}
 
         {/* Quota Exceeded Modal */}
         <AnimatePresence>
-          {isQuotaExceeded && (
+          {showQuotaModal && (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -7358,7 +7365,9 @@ $$;`}
                 <div className="space-y-3">
                   <button 
                     onClick={() => {
+                      setShowQuotaModal(false);
                       setIsQuotaExceeded(false);
+                      setHasAcknowledgedQuota(false);
                       window.location.reload();
                     }}
                     className="w-full py-4 rounded-2xl bg-white text-slate-950 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
@@ -7367,7 +7376,10 @@ $$;`}
                     Check Connectivity
                   </button>
                   <button 
-                    onClick={() => setIsQuotaExceeded(false)}
+                    onClick={() => {
+                      setShowQuotaModal(false);
+                      setHasAcknowledgedQuota(true);
+                    }}
                     className="w-full py-4 rounded-2xl bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-white transition-all border border-white/5"
                   >
                     Continue Limited Mode
