@@ -418,11 +418,11 @@ const SlotCard = React.memo(({
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
       `}
     >
-      {customImage ? (
+      {(customImage || slot.imageUrl) ? (
         <>
           <div className="absolute inset-0 z-0">
             <img 
-              src={customImage} 
+              src={customImage || slot.imageUrl} 
               alt={customName || slot.name} 
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
               referrerPolicy="no-referrer"
@@ -3329,8 +3329,8 @@ export default function App() {
                               h.userResult === 'win' ? 'border-emerald-500/50 bg-emerald-500/10 scale-105' : 
                               h.userResult === 'loss' ? 'border-red-500/30 bg-red-500/5' : 'border-white/5 bg-slate-950/50'
                             }`}>
-                              {s && customImages[s.id] ? (
-                                <img src={customImages[s.id]} alt={customNames[s.id] || s.name} className="w-5 h-5 object-contain rounded" />
+                              {s && (customImages[s.id] || s.imageUrl) ? (
+                                <img src={customImages[s.id] || s.imageUrl} alt={customNames[s.id] || s.name} className="w-5 h-5 object-contain rounded" />
                               ) : (
                                 <Icon className={`w-5 h-5 ${s?.color || 'text-slate-400'}`} />
                               )}
@@ -3533,8 +3533,8 @@ export default function App() {
                                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center justify-between relative z-10 mb-2">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-                                      {customImages[liveLowestPoolCard] ? (
-                                        <img src={customImages[liveLowestPoolCard]} className="w-6 h-6 object-contain rounded-md" alt="trend" />
+                                      {(customImages[liveLowestPoolCard] || GAME_SLOTS.find(s => s.id === liveLowestPoolCard)?.imageUrl) ? (
+                                        <img src={customImages[liveLowestPoolCard] || GAME_SLOTS.find(s => s.id === liveLowestPoolCard)?.imageUrl} className="w-6 h-6 object-contain rounded-md" alt="trend" />
                                       ) : (
                                         <div className={`${GAME_SLOTS.find(s => s.id === liveLowestPoolCard)?.color} opacity-80`}>
                                           {React.createElement(GAME_SLOTS.find(s => s.id === liveLowestPoolCard)!.icon, { size: 18 })}
@@ -7157,8 +7157,8 @@ $$;`}
                   className="w-24 h-24 rounded-3xl bg-slate-800 border-2 border-emerald-400 flex items-center justify-center mb-6 shadow-2xl"
                 >
                   {winner !== null && (
-                    customImages[winner] ? (
-                      <img src={customImages[winner]} alt="Winner" className="w-14 h-14 object-contain rounded-xl" />
+                    (customImages[winner] || GAME_SLOTS.find(s => s.id === winner)?.imageUrl) ? (
+                      <img src={customImages[winner] || GAME_SLOTS.find(s => s.id === winner)?.imageUrl} alt="Winner" className="w-14 h-14 object-contain rounded-xl" />
                     ) : (
                       React.createElement(GAME_SLOTS.find(s => s.id === winner)!.icon, { 
                         className: `w-14 h-14 ${GAME_SLOTS.find(s => s.id === winner)!.color}` 
@@ -7606,7 +7606,7 @@ $$;`}
                           const winSlot = GAME_SLOTS.find(s => s.id === winner);
                           if (!winSlot) return null;
                           const Icon = winSlot.icon;
-                          const customImg = customImages[winSlot.id];
+                          const customImg = customImages[winSlot.id] || winSlot.imageUrl;
                           const customNm = customNames[winSlot.id] || winSlot.name;
                           return (
                             <>
