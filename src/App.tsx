@@ -436,18 +436,9 @@ const SlotCard = React.memo(({
       </span>
       <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1 landscape:right-1 opacity-90 z-20">
          <span className="text-[7.5px] sm:text-[8px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
-            ₹{slotPool}
+            ₹{myBet}
          </span>
       </div>
-      {myBet > 0 && (
-        <motion.div 
-          initial={{ scale: 0.5, opacity: 0, y: 10 }} 
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="absolute -top-1 -left-1 bg-yellow-500 text-slate-950 px-2 py-0.5 rounded-lg shadow-lg shadow-yellow-500/40 text-[8px] font-black z-30 uppercase"
-        >
-          ₹{myBet}
-        </motion.div>
-      )}
     </motion.button>
   );
 });
