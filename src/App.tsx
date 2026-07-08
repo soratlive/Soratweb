@@ -140,6 +140,8 @@ import {
   getRedirectResult
 } from './lib/firebase';
 import { cloudflareAPI } from './lib/cloudflare';
+import { appwriteService, DATABASE_ID, USERS_COLLECTION_ID, databases, client as appwriteClient } from './lib/appwrite';
+import { Query } from 'appwrite';
 
 
 // --- Components ---
@@ -1285,171 +1287,64 @@ export default function App() {
     const now = Date.now();
     if (!force && lastFetch['adminData'] && now - lastFetch['adminData'] < 60000) return; // 1 min TTL
     
-    // Fetch users via Cloudflare / D1 / Firestore / Cache Fallback
+    // 1. Fetch Users from Appwrite DB
     try {
-      try {
-        const d1Users = await cloudflareAPI.getUsers();
-        if (d1Users && Array.isArray(d1Users)) {
-          setAllUsers(d1Users);
-          localStorage.setItem('cached_admin_users', JSON.stringify(d1Users));
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (cfErr) {
-        console.warn("Cloudflare API Users error, falling back to Firestore", cfErr);
-        const path = 'users';
-        const q = query(collection(db, path), limit(150));
-        const usersSnap = await getDocs(q);
-        const fetchedUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAllUsers(fetchedUsers);
-        localStorage.setItem('cached_admin_users', JSON.stringify(fetchedUsers));
-      }
+      const res = await databases.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [Query.limit(100)]);
+      const fetchedUsers = res.documents.map(doc => ({ id: doc.$id, ...doc }));
+      setAllUsers(fetchedUsers);
+      localStorage.setItem('cached_admin_users', JSON.stringify(fetchedUsers));
     } catch (error) {
-      console.warn("Firestore/Cloudflare Users fetch failed, using local offline cache", error);
+      console.warn("Appwrite Users fetch failed, using local offline cache", error);
       const cached = localStorage.getItem('cached_admin_users');
       if (cached) {
         try {
           setAllUsers(JSON.parse(cached));
         } catch (_) {}
       } else {
-        // Fallback to minimal user profile for local preview resilience
         setAllUsers([
           { id: currentUser?.uid || 'local-preview-id', email: currentUser?.email || 'admin@sorat.live', role: 'admin', balance: 10000, mobile: '9049583034' }
         ]);
       }
     }
 
-    // Fetch withdrawals via Cloudflare / D1 / Firestore / Cache Fallback
-    try {
-      try {
-        const d1Withdrawals = await cloudflareAPI.getWithdrawals();
-        if (d1Withdrawals && Array.isArray(d1Withdrawals)) {
-          setWithdrawalRequests(d1Withdrawals);
-          localStorage.setItem('cached_admin_withdrawals', JSON.stringify(d1Withdrawals));
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (cfErr) {
-        console.warn("Cloudflare API Withdrawals error, falling back to Firestore", cfErr);
-        const wPath = 'withdrawalRequests';
-        const wQuery = query(collection(db, wPath), orderBy('timestamp', 'desc'), limit(50));
-        const wSnap = await getDocs(wQuery);
-        const fetchedWithdrawals = wSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        setWithdrawalRequests(fetchedWithdrawals);
-        localStorage.setItem('cached_admin_withdrawals', JSON.stringify(fetchedWithdrawals));
-      }
-    } catch (error) {
-      console.warn("Firestore/Cloudflare Withdrawals fetch failed, using local offline cache", error);
-      const cached = localStorage.getItem('cached_admin_withdrawals');
-      if (cached) {
-        try {
-          setWithdrawalRequests(JSON.parse(cached));
-        } catch (_) {}
-      } else {
-        setWithdrawalRequests([]);
-      }
-    }
+    // 2. Clear withdrawals for Appwrite compatibility
+    setWithdrawalRequests([]);
 
-    // Fetch deposits via Cloudflare / D1 / Firestore / Cache Fallback
+    // 3. Fetch payment proofs from Appwrite DB
     try {
-      try {
-        const d1Deposits = await cloudflareAPI.getDeposits();
-        if (d1Deposits && Array.isArray(d1Deposits)) {
-          setDepositRequests(d1Deposits);
-          localStorage.setItem('cached_admin_deposits', JSON.stringify(d1Deposits));
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (cfErr) {
-        console.warn("Cloudflare API Deposits error, falling back to Firestore", cfErr);
-        const dPath = 'depositRequests';
-        const dQuery = query(collection(db, dPath), orderBy('timestamp', 'desc'), limit(50));
-        const dSnap = await getDocs(dQuery);
-        const fetchedDeposits = dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        setDepositRequests(fetchedDeposits);
-        localStorage.setItem('cached_admin_deposits', JSON.stringify(fetchedDeposits));
-      }
-    } catch (error) {
-      console.warn("Firestore/Cloudflare Deposits fetch failed, using local offline cache", error);
-      const cached = localStorage.getItem('cached_admin_deposits');
-      if (cached) {
-        try {
-          setDepositRequests(JSON.parse(cached));
-        } catch (_) {}
-      } else {
-        setDepositRequests([]);
-      }
-    }
-
-    // Fetch dealers via Cloudflare / D1 / Firestore / Cache Fallback
-    try {
-      try {
-        const d1Dealers = await cloudflareAPI.getDealers();
-        if (d1Dealers && Array.isArray(d1Dealers)) {
-          setDealers(d1Dealers);
-          localStorage.setItem('cached_admin_dealers', JSON.stringify(d1Dealers));
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (cfErr) {
-        console.warn("Cloudflare API Dealers error, falling back to Firestore", cfErr);
-        const dePath = 'dealers';
-        const deSnap = await getDocs(collection(db, dePath));
-        const fetchedDealers = deSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Dealer));
-        setDealers(fetchedDealers);
-        localStorage.setItem('cached_admin_dealers', JSON.stringify(fetchedDealers));
-      }
-    } catch (error) {
-      console.warn("Firestore/Cloudflare Dealers fetch failed, using local offline cache", error);
-      const cached = localStorage.getItem('cached_admin_dealers');
-      if (cached) {
-        try {
-          setDealers(JSON.parse(cached));
-        } catch (_) {}
-      } else {
-        // High fidelity fallback dealers
-        setDealers([
-          { id: 'offline-dealer-1', name: 'Official Sorat Recharge 1', whatsapp: '9049583034', upiId: 'recharge1@ybl', qrUrl: '', isActive: true },
-          { id: 'offline-dealer-2', name: 'Premium Support Portal', whatsapp: '9049583034', upiId: 'recharge2@ybl', qrUrl: '', isActive: true }
-        ]);
-      }
-    }
-
-    // Fetch payment proofs via Cloudflare Worker D1 with backup fallback
-    try {
-      try {
-        const d1Proofs = await cloudflareAPI.getPaymentProofs();
-        if (d1Proofs && Array.isArray(d1Proofs)) {
-          setPaymentProofs(d1Proofs);
-          localStorage.setItem('cached_admin_payment_proofs', JSON.stringify(d1Proofs));
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (cfErr) {
-        console.warn("Cloudflare API Payment Proofs error, falling back to Firestore/local", cfErr);
-        const pPath = 'depositRequests'; // Use main depositRequests collection as high fidelity fallback
-        const pSnap = await getDocs(query(collection(db, pPath), orderBy('timestamp', 'desc'), limit(50)));
-        const fetchedProofs = pSnap.docs.map(doc => ({
-          id: doc.id,
-          user_email: doc.data().email || 'unknown@user.com',
-          screenshot_url: doc.data().screenshotUrl || '',
-          amount: doc.data().amount || 0,
-          status: doc.data().status || 'pending',
-          created_at: new Date(doc.data().timestamp || Date.now()).toISOString()
+      const d1Proofs = await appwriteService.getPaymentProofs();
+      if (d1Proofs && Array.isArray(d1Proofs)) {
+        const mappedProofs = d1Proofs.map(doc => ({
+          id: doc.$id,
+          user_email: doc.user_email || 'unknown@user.com',
+          screenshot_url: doc.screenshot_url || '',
+          amount: doc.amount || 0,
+          status: doc.status || 'pending',
+          created_at: doc.created_at || new Date().toISOString()
         }));
-        setPaymentProofs(fetchedProofs);
+        setPaymentProofs(mappedProofs);
+        setDepositRequests(mappedProofs as any); // Match shapes
+        localStorage.setItem('cached_admin_payment_proofs', JSON.stringify(mappedProofs));
       }
     } catch (error) {
-      console.warn("Payment proofs fetch failed, using cached data if available", error);
+      console.warn("Appwrite payment proofs fetch failed, using cached data if available", error);
       const cached = localStorage.getItem('cached_admin_payment_proofs');
       if (cached) {
         try {
           setPaymentProofs(JSON.parse(cached));
+          setDepositRequests(JSON.parse(cached));
         } catch (_) {}
       } else {
         setPaymentProofs([]);
+        setDepositRequests([]);
       }
     }
+
+    // 4. Default mock/fallback dealers
+    setDealers([
+      { id: 'offline-dealer-1', name: 'Official Sorat Recharge 1', whatsapp: '9049583034', upiId: 'recharge1@ybl', qrUrl: '', isActive: true },
+      { id: 'offline-dealer-2', name: 'Premium Support Portal', whatsapp: '9049583034', upiId: 'recharge2@ybl', qrUrl: '', isActive: true }
+    ]);
     
     setLastFetch(prev => ({ ...prev, adminData: now }));
   };
@@ -1575,40 +1470,44 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isQuotaExceeded) return;
+    let unsubscribeRealtime: (() => void) | undefined;
 
-    if (auth) {
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            console.log('[Firebase Auth] Successfully sign-in user via redirect callback:', result.user.email);
-          }
-        })
-        .catch((redirectError: any) => {
-          console.warn('[Firebase Auth] Redirect sign-in result check failed:', redirectError);
-        });
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          localStorage.setItem('sorat_jwt_token', token);
-        } catch (tokenErr) {
-          console.warn('[Firebase Auth] Failed to acquire ID token for Cloudflare:', tokenErr);
+    const checkAppwriteSession = async () => {
+      try {
+        setIsAuthLoading(true);
+        const user = await appwriteService.getCurrentUser();
+        if (user) {
+          setCurrentUser(user as any);
+          setUserProfile(user);
+          setBalance(user.balance);
+          
+          // Set up real-time listener for user balance
+          unsubscribeRealtime = appwriteService.subscribeToUser(user.uid, (updatedDoc) => {
+            console.log("[Appwrite Realtime] User profile updated:", updatedDoc);
+            if (updatedDoc) {
+              setUserProfile(updatedDoc);
+              if (updatedDoc.balance !== undefined) {
+                setBalance(updatedDoc.balance);
+              }
+            }
+          });
+        } else {
+          setCurrentUser(null);
+          setUserProfile(null);
+          setBalance(0);
+          setIsAuthModalOpen(true);
         }
-        fetchUserProfile(user);
-      } else {
-        localStorage.removeItem('sorat_jwt_token');
-        setUserProfile(null);
-        setBalance(0);
-        setIsAuthModalOpen(true);
+      } catch (err) {
+        console.warn("[Appwrite Auth] Session check error:", err);
+      } finally {
+        setIsAuthLoading(false);
       }
-    });
+    };
+
+    checkAppwriteSession();
 
     return () => {
-      unsubscribe();
+      if (unsubscribeRealtime) unsubscribeRealtime();
     };
   }, [isQuotaExceeded]);
 
@@ -1843,32 +1742,10 @@ export default function App() {
       } else {
         const newBalance = balance + winAmount; 
         setBalance(newBalance);
-        const path = `users/${currentUser.uid}`;
         try {
-          await updateDoc(doc(db, 'users', currentUser.uid), {
-            balance: newBalance
-          });
-
-          // Update Leaderboard
-          const lbRef = doc(db, 'leaderboard', currentUser.uid);
-          const lbSnap = await getDoc(lbRef);
-          if (lbSnap.exists()) {
-             const lbData = lbSnap.data();
-             await updateDoc(lbRef, {
-               totalWinnings: increment(winAmount),
-               highestWin: Math.max(lbData.highestWin || 0, winAmount),
-               displayName: userProfile?.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Player'
-             });
-          } else {
-             await setDoc(lbRef, {
-               userId: currentUser.uid,
-               displayName: userProfile?.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Player',
-               totalWinnings: winAmount,
-               highestWin: winAmount
-             });
-          }
+          await appwriteService.updateUserBalance(currentUser.uid, newBalance);
         } catch (error) {
-          handleAppError(error, OperationType.WRITE, path);
+          console.error("Appwrite payout update failed:", error);
         }
       }
 
@@ -2160,13 +2037,11 @@ export default function App() {
       setDemoBalance(prev => prev - betAmount);
     } else {
       setBalance(prev => prev - betAmount);
-      const path = `users/${currentUser.uid}`;
       try {
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          balance: increment(-betAmount)
-        });
+        await appwriteService.updateUserBalance(currentUser.uid, currentBalance - betAmount);
       } catch (error) {
-        handleAppError(error, OperationType.WRITE, path);
+        console.error("Appwrite balance update failed, reverting optimistic balance:", error);
+        setBalance(currentBalance);
       }
     }
 
@@ -2503,42 +2378,21 @@ export default function App() {
       return;
     }
 
-    const dPath = 'depositRequests';
     try {
       if (!currentUser) return;
       
-      addNotification("Uploading screenshot to free hosting...", "info");
+      addNotification("Uploading screenshot to Appwrite Storage...", "info");
       
-      // Upload using our free image host handler
-      const finalScreenshotUrl = await uploadToFreeImageHost(screenshotBase64);
+      // Upload using Appwrite Storage bucket
+      const finalScreenshotUrl = await appwriteService.uploadScreenshot(screenshotBase64);
       const proofId = Math.random().toString(36).substring(2, 15);
       
-      // Save to Cloudflare D1 via Worker
-      try {
-        await cloudflareAPI.createPaymentProof({
-          id: proofId,
-          user_email: currentUser.email || 'unknown@user.com',
-          screenshot_url: finalScreenshotUrl,
-          amount: amt
-        });
-        console.log("[D1] Saved payment proof successfully");
-      } catch (cfErr) {
-        console.warn("[D1] Save failed, falling back to local/Firestore behavior:", cfErr);
-      }
-
-      // Also save to Firestore for local fallback sync and real-time dashboard compatibility
-      await addDoc(collection(db, dPath), {
+      // Save to Appwrite Database collection payment_proofs
+      await appwriteService.createPaymentProof({
         id: proofId,
-        userId: currentUser.uid,
-        email: currentUser.email,
-        amount: amt,
-        method: dealerPaymentMethod,
-        dealerId: 'system',
-        transactionId: transactionId || 'NOT_PROVIDED',
-        screenshotUrl: finalScreenshotUrl,
-        userBalanceBefore: balance,
-        status: 'pending',
-        timestamp: Date.now()
+        user_email: currentUser.email || 'unknown@user.com',
+        screenshot_url: finalScreenshotUrl,
+        amount: amt
       });
 
       addNotification("Deposit request submitted successfully!", 'win');
@@ -2551,7 +2405,8 @@ export default function App() {
       setDealerPaymentMethod(null);
       setSelectedMethod(null);
     } catch (error) {
-      handleAppError(error, OperationType.WRITE, dPath);
+      console.error("Deposit submission failed:", error);
+      addNotification("Submission failed. Please try again.", "info");
     }
   };
 
@@ -2601,44 +2456,17 @@ export default function App() {
     try {
       addNotification(`Approving proof...`, 'info');
       
-      // 1. D1 Update
-      try {
-        await cloudflareAPI.updatePaymentProofStatus(proofId, 'approved');
-        addNotification(`Proof approved on Cloudflare Worker D1!`, 'win');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error approving proof, falling back to local simulation", cfErr);
-      }
-
-      // 2. Fallback Firebase update: find the matching deposit request and approve it too
-      try {
-        const q = query(collection(db, 'depositRequests'), where('id', '==', proofId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const docId = snap.docs[0].id;
-          const depositData = snap.docs[0].data();
-          const userId = depositData.userId;
-          await updateDoc(doc(db, 'depositRequests', docId), {
-            status: 'approved',
-            processedAt: Date.now()
-          });
-          
-          // Also update the balance in Firebase users collection
-          const userDoc = doc(db, 'users', userId);
-          await updateDoc(userDoc, {
-            balance: increment(amount)
-          });
-          console.log("[Firestore] Fallback updated deposit request and user balance");
-        }
-      } catch (firestoreErr) {
-        console.warn("Firestore sync for payment proof approval failed:", firestoreErr);
-      }
+      // Update in Appwrite - this will automatically update the proof status to 'approved'
+      // AND credit the coins to the user's balance!
+      await appwriteService.updatePaymentProofStatus(proofId, 'approved');
+      addNotification(`Proof approved successfully!`, 'win');
+      addNotification(`₹${amount} coins added to ${userEmail}!`, 'win');
 
       // Refresh admin data
       fetchAdminData(true);
-      addNotification(`₹${amount} coins added to ${userEmail}!`, 'win');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to approve payment proof:", err);
-      addNotification("Approval failed. Please try again.", "info");
+      addNotification(err?.message || "Approval failed. Please try again.", "info");
     }
   };
 
@@ -2646,36 +2474,15 @@ export default function App() {
     try {
       addNotification(`Rejecting proof...`, 'info');
       
-      // 1. D1 Update
-      try {
-        await cloudflareAPI.updatePaymentProofStatus(proofId, 'rejected');
-        addNotification(`Proof rejected on Cloudflare Worker D1!`, 'info');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error rejecting proof, falling back", cfErr);
-      }
-
-      // 2. Fallback Firebase update
-      try {
-        const q = query(collection(db, 'depositRequests'), where('id', '==', proofId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const docId = snap.docs[0].id;
-          await updateDoc(doc(db, 'depositRequests', docId), {
-            status: 'rejected',
-            processedAt: Date.now()
-          });
-          console.log("[Firestore] Fallback marked deposit request as rejected");
-        }
-      } catch (firestoreErr) {
-        console.warn("Firestore sync for payment proof rejection failed:", firestoreErr);
-      }
+      // Update in Appwrite
+      await appwriteService.updatePaymentProofStatus(proofId, 'rejected');
+      addNotification(`Proof rejected successfully!`, 'info');
 
       // Refresh admin data
       fetchAdminData(true);
-      addNotification("Proof rejected successfully.", "info");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to reject payment proof:", err);
-      addNotification("Rejection failed.", "info");
+      addNotification(err?.message || "Rejection failed.", "info");
     }
   };
 
@@ -3036,28 +2843,7 @@ export default function App() {
     setIsAuthLoading(true);
     addNotification("Starting Google Sign-In...", 'info');
     try {
-      const result = await signInWithGoogle();
-      if (result?.user) {
-        addNotification(`Welcome, ${result.user.displayName || 'Player'}!`, 'win');
-        
-        // Retrieve ID token and save to localStorage
-        const token = await result.user.getIdToken();
-        localStorage.setItem('sorat_jwt_token', token);
-
-        // Sync to Cloudflare Worker to issue custom JWT and save to D1 database
-        try {
-          const backendResult = await cloudflareAPI.googleSignIn(token);
-          if (backendResult?.token) {
-            localStorage.setItem('sorat_jwt_token', backendResult.token);
-            console.log('[Google Auth] Secured JWT session issued by Cloudflare Edge!');
-          }
-        } catch (syncErr: any) {
-          console.warn('[Google Auth] Cloudflare sync non-blocking error:', syncErr?.message || syncErr);
-        }
-
-        setIsAuthModalOpen(false);
-        setIsProfileOpen(false);
-      }
+      await appwriteService.signInWithGoogle();
     } catch (error: any) {
       console.error("[Google Login] Error:", error);
       addNotification(error?.message || "Google Sign-In failed.", 'info');
@@ -3083,39 +2869,40 @@ export default function App() {
     const nameStr = authForm.displayName.trim() || `Player ${cleanMobile.slice(-4)}`;
 
     try {
+      const { ID, Account } = await import('appwrite');
+      const accountInstance = new Account(appwriteClient);
+
       if (authType === 'register') {
-        const userCredential = await createUserWithEmailAndPassword(auth, emailStr, passwordStr);
-        await updateProfile(userCredential.user, { displayName: nameStr });
-        addNotification("Registration successful! Welcome.", 'win');
+        await accountInstance.create(ID.unique(), emailStr, passwordStr, nameStr);
+        addNotification("Registration successful! Logging in...", 'win');
+        await accountInstance.createEmailPasswordSession(emailStr, passwordStr);
       } else {
-        await signInWithEmailAndPassword(auth, emailStr, passwordStr);
+        await accountInstance.createEmailPasswordSession(emailStr, passwordStr);
         addNotification("Logged in successfully!", 'win');
       }
+
+      // Refresh current user session details
+      const user = await appwriteService.getCurrentUser();
+      if (user) {
+        setCurrentUser(user as any);
+        setUserProfile(user);
+        setBalance(user.balance);
+      }
+
       setIsAuthModalOpen(false);
       setAuthForm({ mobile: '', password: '', displayName: '' });
       setShowPassword(false);
       setIsProfileOpen(false);
     } catch (error: any) {
-      console.error("Auth error:", error);
-      const code = error?.code || '';
-      let friendlyMsg = error?.message || 'Login failed. Please try again.';
+      console.error("Appwrite Auth error:", error);
+      let friendlyMsg = error?.message || 'Authentication failed. Please try again.';
       
-      if (code.includes('invalid-email')) {
-        friendlyMsg = "Invalid mobile number format!";
-      } else if (code.includes('user-not-found')) {
-        friendlyMsg = "Mobile number not registered! Please sign up.";
-      } else if (code.includes('wrong-password')) {
-        friendlyMsg = "Incorrect password! Please check.";
-      } else if (code.includes('invalid-credential')) {
-        friendlyMsg = "Incorrect mobile number or password. Please try again.";
-      } else if (code.includes('email-already-in-use')) {
-        friendlyMsg = "This mobile number is already registered! Please login instead.";
-      } else if (code.includes('weak-password')) {
-        friendlyMsg = "Password must be at least 6 characters long.";
-      } else if (code.includes('network-request-failed')) {
-        friendlyMsg = "Network error! Please check your internet connection.";
-      } else if (code.includes('too-many-requests')) {
-        friendlyMsg = "Too many attempts! Please try again later.";
+      if (error?.code === 409 || friendlyMsg.includes('exists')) {
+        friendlyMsg = "Mobile number is already registered! Please login instead.";
+      } else if (error?.code === 401 || friendlyMsg.includes('invalid credentials')) {
+        friendlyMsg = "Incorrect mobile number or password.";
+      } else if (friendlyMsg.includes('password')) {
+        friendlyMsg = "Password must be at least 8 characters long.";
       }
 
       addNotification(friendlyMsg, 'info');
