@@ -220,6 +220,35 @@ export default {
     try {
       // Dynamic Matcher for `/api/users/:id` routes
       const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+      const proofMatch = url.pathname.match(/^\/api\/payment-proofs\/([^/]+)$/);
+
+      // Route: GET /api/game-state - Universal mathematical time anchored round status
+      if (url.pathname === '/api/game-state' && method === 'GET') {
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const currentSecondInCycle = currentTimestamp % 60;
+        const timeLeft = 60 - currentSecondInCycle;
+        let status = "OPEN";
+        if (currentSecondInCycle >= 45 && currentSecondInCycle < 55) {
+          status = "LOCKDOWN";
+        } else if (currentSecondInCycle >= 55) {
+          status = "RESULT";
+        }
+        const roundId = Math.floor(currentTimestamp / 60);
+
+        return new Response(JSON.stringify({
+          success: true,
+          status,
+          timeLeft,
+          roundId: roundId.toString(),
+          timestamp: currentTimestamp
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
 
       // Route: GET /api/users - Fetch all users from Cloudflare D1
       if (url.pathname === '/api/users' && method === 'GET') {
@@ -409,6 +438,114 @@ export default {
           .run();
 
         return new Response(JSON.stringify({ success: true, message: 'User deleted successfully from D1 database!' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Route: GET /api/payment-proofs - Fetch all payment proofs from Cloudflare D1
+      if (url.pathname === '/api/payment-proofs' && method === 'GET') {
+        const isAdmin = await verifyAdmin(request, env);
+        if (!isAdmin) {
+          return new Response(JSON.stringify({ error: 'Unauthorized: Admin privileges required' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const { results } = await env.DB.prepare(
+          'SELECT id, user_email, screenshot_url, amount, status, created_at FROM payment_proofs ORDER BY created_at DESC'
+        ).all();
+
+        return new Response(JSON.stringify(results), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      // Route: POST /api/payment-proofs - Submit a new payment proof to D1
+      if (url.pathname === '/api/payment-proofs' && method === 'POST') {
+        const body: any = await request.json();
+        const { id, user_email, screenshot_url, amount } = body;
+
+        if (!id || !user_email || !screenshot_url || !amount) {
+          return new Response(JSON.stringify({ error: 'Missing required parameters: id, user_email, screenshot_url, amount' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        await env.DB.prepare(
+          'INSERT INTO payment_proofs (id, user_email, screenshot_url, amount, status) VALUES (?, ?, ?, ?, ?)'
+        )
+        .bind(id, user_email, screenshot_url, parseFloat(amount), 'pending')
+        .run();
+
+        return new Response(JSON.stringify({ success: true, message: 'Payment proof submitted to D1!' }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Route: PUT /api/payment-proofs/:id - Approve or reject a payment proof
+      if (proofMatch && method === 'PUT') {
+        const proofId = proofMatch[1];
+        const isAdmin = await verifyAdmin(request, env);
+        if (!isAdmin) {
+          return new Response(JSON.stringify({ error: 'Unauthorized: Admin privileges required' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const body: any = await request.json();
+        const { status } = body; // 'approved' or 'rejected'
+
+        if (status !== 'approved' && status !== 'rejected') {
+          return new Response(JSON.stringify({ error: 'Invalid status. Must be approved or rejected.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Fetch current proof info
+        const proof: any = await env.DB.prepare('SELECT user_email, amount, status FROM payment_proofs WHERE id = ?')
+          .bind(proofId)
+          .first();
+
+        if (!proof) {
+          return new Response(JSON.stringify({ error: 'Payment proof not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (proof.status !== 'pending') {
+          return new Response(JSON.stringify({ error: 'Payment proof is already processed' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Update the status in payment_proofs table
+        await env.DB.prepare('UPDATE payment_proofs SET status = ? WHERE id = ?')
+          .bind(status, proofId)
+          .run();
+
+        // If approved, add balance/coins to the user in D1 database
+        if (status === 'approved') {
+          await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE email = ?')
+            .bind(proof.amount, proof.user_email)
+            .run();
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: `Payment proof ${status} successfully. ${status === 'approved' ? 'Coins added to user account!' : ''}` 
+        }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });

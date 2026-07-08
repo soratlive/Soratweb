@@ -12,6 +12,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create payment_proofs table for ImgBB / Free Hosting screenshot submission
+CREATE TABLE IF NOT EXISTS payment_proofs (
+    id TEXT PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    screenshot_url TEXT NOT NULL,
+    amount REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed Initial Admin user (Optional)
 INSERT OR IGNORE INTO users (id, name, email, role, balance) 
 VALUES ('admin-init-id', 'System Admin', 'admin@sorat.live', 'admin', 50000.00);

@@ -139,5 +139,16 @@ export const cloudflareAPI = {
   },
   placeBet: async (betData: any): Promise<any> => {
     return await workerFetch('/bets', 'POST', betData);
+  },
+
+  // --- Payment Proofs (ImgBB / Free Hosting) ---
+  getPaymentProofs: async (): Promise<any[]> => {
+    return await workerFetch('/payment-proofs');
+  },
+  createPaymentProof: async (proofData: any): Promise<any> => {
+    return await workerFetch('/payment-proofs', 'POST', proofData);
+  },
+  updatePaymentProofStatus: async (proofId: string, status: 'approved' | 'rejected'): Promise<any> => {
+    return await workerFetch(`/payment-proofs/${proofId}`, 'PUT', { status });
   }
 };

@@ -71,6 +71,33 @@ import {
   LOCK_DURATION
 } from './constants';
 import { Bet, GameHistory, AdminState, Notification, Dealer, DepositRequest, WithdrawalRequest, LeaderboardEntry, GamePhase, Game } from './types';
+
+// Mathematical Time Anchoring Helpers for 24x7 synchronized universal loop
+const getDeterministicWinner = (roundId: string): number => {
+  let hash = 0;
+  for (let i = 0; i < roundId.length; i++) {
+    hash = (hash << 5) - hash + roundId.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % GAME_SLOTS.length;
+  return GAME_SLOTS[index].id;
+};
+
+const getDeterministicPools = (roundId: string): { [id: number]: number } => {
+  const pools: { [id: number]: number } = {};
+  GAME_SLOTS.forEach(s => {
+    let hash = 0;
+    const str = `${roundId}_slot_${s.id}`;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const seedValue = Math.abs(hash);
+    const amount = 500 + (seedValue % 14500);
+    pools[s.id] = Math.floor(amount / 50) * 50;
+  });
+  return pools;
+};
 import { 
   auth, 
   db, 
@@ -223,7 +250,7 @@ const TimerDisplay = React.memo(({
     barColor = 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.8)]';
     bgColor = 'bg-rose-950/10 border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.1)]';
     statusText = 'BETS LOCKDOWN';
-    description = 'Preparing final randomizer...';
+    description = 'No more bets!';
     badgeIcon = '🛑';
   } else if (isLowTime) {
     themeColor = 'text-amber-400 font-extrabold scale-110';
@@ -383,7 +410,7 @@ const SlotCard = React.memo(({
       onClick={(e) => onBet(slot.id, e)}
       disabled={phase !== 'betting'}
       className={`
-        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-2.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square overflow-hidden
+        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-1.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square overflow-hidden
         ${phase === 'betting' ? 'hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)]' : 'opacity-80'}
         ${myBet > 0 ? 'border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'border-white/5 bg-slate-900/40'}
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
@@ -402,13 +429,13 @@ const SlotCard = React.memo(({
           </div>
         </>
       ) : (
-        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-1.5 h-7 w-7 sm:h-9 sm:w-9 landscape:h-6.5 landscape:w-6.5 relative z-10 transition-transform duration-350 group-hover:scale-110`} />
+        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-1 h-7 w-7 sm:h-9 sm:w-9 landscape:h-[22px] landscape:w-[22px] relative z-10 transition-transform duration-350 group-hover:scale-110`} />
       )}
-      <span className="text-[10px] sm:text-xs landscape:text-[9.5px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
+      <span className="text-[10px] sm:text-xs landscape:text-[8px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
         {customName || slot.name}
       </span>
-      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1.5 landscape:right-1.5 opacity-90 z-20">
-         <span className="text-[7.5px] sm:text-[8px] landscape:text-[7px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
+      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1 landscape:right-1 opacity-90 z-20">
+         <span className="text-[7.5px] sm:text-[8px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
             ₹{slotPool}
          </span>
       </div>
@@ -467,8 +494,24 @@ export default function App() {
   const serverTimeOffsetRef = useRef<number>(0);
   const getSyncedNow = () => Date.now() + serverTimeOffsetRef.current;
 
-  useEffect(() => {
-    const syncTime = async () => {
+  const syncTime = async () => {
+    try {
+      const startTime = Date.now();
+      const response = await fetch('/api/game-state');
+      if (!response.ok) throw new Error("API not ok");
+      const data = await response.json();
+      const endTime = Date.now();
+      
+      if (data && data.success && data.timestamp) {
+        const serverTime = data.timestamp * 1000;
+        const latency = (endTime - startTime) / 2;
+        const adjustedServerTime = serverTime + latency;
+        const offset = adjustedServerTime - Date.now();
+        serverTimeOffsetRef.current = offset;
+        console.log(`[Clock Sync API] Offset synchronized: ${offset}ms`);
+      }
+    } catch (err) {
+      console.warn("[Clock Sync API] Failed, trying fallback HEAD sync", err);
       try {
         const startTime = Date.now();
         const response = await fetch('/index.html', { method: 'HEAD', cache: 'no-store' });
@@ -480,14 +523,17 @@ export default function App() {
           const adjustedServerTime = serverTime + latency;
           const offset = adjustedServerTime - Date.now();
           serverTimeOffsetRef.current = offset;
-          console.log(`[Clock Sync] Offset synchronized: ${offset}ms`);
+          console.log(`[Clock Sync Fallback] Offset synchronized: ${offset}ms`);
         }
-      } catch (err) {
-        console.warn("[Clock Sync] Failed to synchronize clock", err);
+      } catch (headErr) {
+        console.error("[Clock Sync] All sync methods failed", headErr);
       }
-    };
+    }
+  };
+
+  useEffect(() => {
     syncTime();
-    const interval = setInterval(syncTime, 15000);
+    const interval = setInterval(syncTime, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -529,12 +575,13 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
+  const [paymentProofs, setPaymentProofs] = useState<any[]>([]);
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [games, setGames] = useState<Game[]>([]);
 
   const [gameResult, setGameResult] = useState<'win' | 'loss' | null>(null);
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(null);
-  const [adminTab, setAdminTab] = useState<'controls' | 'users' | 'admins' | 'withdrawals' | 'deposits' | 'notifications' | 'bets' | 'dealers' | 'history' | 'branding' | 'debug' | 'policies'>('controls');
+  const [adminTab, setAdminTab] = useState<'controls' | 'users' | 'admins' | 'withdrawals' | 'deposits' | 'payment_proofs' | 'notifications' | 'bets' | 'dealers' | 'history' | 'branding' | 'debug' | 'policies'>('controls');
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositStep, setDepositStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState<'gpay' | 'phonepe' | 'qr' | 'card' | 'bank' | 'dealer' | null>(null);
@@ -798,7 +845,7 @@ export default function App() {
     localStorage.setItem('demoDailyAddedDate', new Date().toDateString());
   }, [demoDailyAdded]);
 
-  const [betAmount, setBetAmount] = useState(100);
+  const [betAmount, setBetAmount] = useState(10);
   const [timer, setTimer] = useState(CYCLE_DURATION);
   const [phase, setPhase] = useState<'betting' | 'locked' | 'result'>('betting');
   const [currentBets, setCurrentBets] = useState<Bet[]>([]);
@@ -1376,6 +1423,42 @@ export default function App() {
         ]);
       }
     }
+
+    // Fetch payment proofs via Cloudflare Worker D1 with backup fallback
+    try {
+      try {
+        const d1Proofs = await cloudflareAPI.getPaymentProofs();
+        if (d1Proofs && Array.isArray(d1Proofs)) {
+          setPaymentProofs(d1Proofs);
+          localStorage.setItem('cached_admin_payment_proofs', JSON.stringify(d1Proofs));
+        } else {
+          throw new Error("Invalid response");
+        }
+      } catch (cfErr) {
+        console.warn("Cloudflare API Payment Proofs error, falling back to Firestore/local", cfErr);
+        const pPath = 'depositRequests'; // Use main depositRequests collection as high fidelity fallback
+        const pSnap = await getDocs(query(collection(db, pPath), orderBy('timestamp', 'desc'), limit(50)));
+        const fetchedProofs = pSnap.docs.map(doc => ({
+          id: doc.id,
+          user_email: doc.data().email || 'unknown@user.com',
+          screenshot_url: doc.data().screenshotUrl || '',
+          amount: doc.data().amount || 0,
+          status: doc.data().status || 'pending',
+          created_at: new Date(doc.data().timestamp || Date.now()).toISOString()
+        }));
+        setPaymentProofs(fetchedProofs);
+      }
+    } catch (error) {
+      console.warn("Payment proofs fetch failed, using cached data if available", error);
+      const cached = localStorage.getItem('cached_admin_payment_proofs');
+      if (cached) {
+        try {
+          setPaymentProofs(JSON.parse(cached));
+        } catch (_) {}
+      } else {
+        setPaymentProofs([]);
+      }
+    }
     
     setLastFetch(prev => ({ ...prev, adminData: now }));
   };
@@ -1432,7 +1515,8 @@ export default function App() {
       const wSnap = await getDocs(wq);
       setPersonalWithdrawals(wSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawalRequest)));
     } catch (err) {
-      console.error("Personal requests fetch failed", err);
+      console.warn("Personal requests fetch failed, delegating to App error handler", err);
+      handleAppError(err, OperationType.LIST, 'depositRequests');
     }
   };
 
@@ -1640,46 +1724,23 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isQuotaExceeded]);
 
-  // --- Synchronized Game Loop Listener & State Machines ---
-  
-  // 1. Listen to 'currentRound' in real-time
+  // --- Mathematical Synchronized Game Loop ---
   useEffect(() => {
-    if (!db || isQuotaExceeded) return;
+    const runGameLoop = () => {
+      const now = getSyncedNow();
+      const nowSec = Math.floor(now / 1000);
+      const sec = nowSec % 60;
+      const currentRoundId = Math.floor(nowSec / 60).toString();
 
-    let isSubscribed = true;
-
-    const unsubscribe = onSnapshot(doc(db, 'game', 'currentRound'), (snapshot) => {
-      if (!isSubscribed) return;
-      if (!snapshot.exists()) {
-        initPool();
-        return;
+      // Trigger sync with backend on round rollover
+      if (sec === 0) {
+        syncTime();
       }
 
-      const data = snapshot.data();
-      const currentSyncedPhase = data.phase || 'betting';
-      const currentSyncedEndTime = data.timerEndTime || (getSyncedNow() + CYCLE_DURATION * 1000);
-      const currentSyncedWinnerId = data.winnerId !== undefined ? data.winnerId : null;
-      const currentSyncedRoundId = data.roundId || 'legacy';
-
-      setPhase(currentSyncedPhase);
-      setWinner(currentSyncedWinnerId);
-      setTimerEndTime(currentSyncedEndTime);
-
-      // Sync slot pools
-      const map: { [id: number]: number } = {};
-      let total = 0;
-      GAME_SLOTS.forEach(s => {
-        const val = data[`slot_${s.id}`] || 0;
-        map[s.id] = val;
-        total += val;
-      });
-      setPoolPerSlot(map);
-      setTotalPool(total);
-
-      // Detect round transition or reset
-      if (currentSyncedRoundId !== lastSeenRoundIdRef.current) {
-        lastSeenRoundIdRef.current = currentSyncedRoundId;
-        // This is a brand new round! Reset the local player bet states
+      // Check if new round started
+      if (currentRoundId !== lastSeenRoundIdRef.current) {
+        lastSeenRoundIdRef.current = currentRoundId;
+        // Reset player bet states for the new round
         setMyBets({});
         setCurrentBets([]);
         setGameResult(null);
@@ -1687,25 +1748,61 @@ export default function App() {
         setPredictedWinner(null);
         setLiveLowestPoolCard(null);
         setAdminState(prev => ({ ...prev, forceWinner: null }));
-        if (currentSyncedPhase === 'betting') {
+        
+        // Load deterministic pools
+        const map = getDeterministicPools(currentRoundId);
+        let total = 0;
+        GAME_SLOTS.forEach(s => {
+          total += map[s.id];
+        });
+        setPoolPerSlot(map);
+        setTotalPool(total);
+      }
+
+      // Determine phase and timer based on current second
+      if (sec < 45) {
+        // Betting Phase (0 to 44 seconds)
+        const remainingSeconds = 45 - sec;
+        if (phase !== 'betting') {
+          setPhase('betting');
+          setWinner(null);
           playSound('start');
         }
+        setTimer(remainingSeconds);
+      } else if (sec >= 45 && sec < 55) {
+        // Locked / Spin Phase (45 to 54 seconds)
+        const remainingSeconds = 55 - sec;
+        if (phase !== 'locked') {
+          setPhase('locked');
+          const wId = getDeterministicWinner(currentRoundId);
+          setWinner(wId);
+        }
+        setTimer(remainingSeconds);
+        if (remainingSeconds <= 5 && remainingSeconds > 1) {
+          playSound('tick');
+        }
+      } else {
+        // Result Phase (55 to 59 seconds)
+        const remainingSeconds = 60 - sec;
+        if (phase !== 'result') {
+          setPhase('result');
+          const wId = getDeterministicWinner(currentRoundId);
+          if (lastPaidRoundIdRef.current !== currentRoundId) {
+            lastPaidRoundIdRef.current = currentRoundId;
+            const currentRoundPools = getDeterministicPools(currentRoundId);
+            const totalRoundPool = Object.values(currentRoundPools).reduce((a, b) => a + b, 0);
+            resolveGameLocally(wId, currentRoundId, currentRoundPools, totalRoundPool);
+          }
+        }
+        setTimer(remainingSeconds);
       }
-
-      // Check for payouts
-      if (currentSyncedPhase === 'result' && currentSyncedWinnerId !== null && lastPaidRoundIdRef.current !== currentSyncedRoundId) {
-        lastPaidRoundIdRef.current = currentSyncedRoundId;
-        resolveGameLocally(currentSyncedWinnerId, currentSyncedRoundId, map, total);
-      }
-    }, (error) => {
-      console.warn("Real-time snapshot failed", error);
-    });
-
-    return () => {
-      isSubscribed = false;
-      unsubscribe();
     };
-  }, [db, isQuotaExceeded, adminState.multiplier, balance, currentUser, isDemoMode, demoBalance, userProfile]);
+
+    // Run immediately and then on every 1-second interval
+    runGameLoop();
+    const interval = setInterval(runGameLoop, 1000);
+    return () => clearInterval(interval);
+  }, [phase, isMuted]);
 
   // Listen to 'paymentSettings' in real-time
   useEffect(() => {
@@ -1984,32 +2081,7 @@ export default function App() {
     }
   };
 
-  // 4. Tick Interval
-  useEffect(() => {
-    if (adminState.isPaused || !timerEndTime) return;
 
-    const interval = setInterval(() => {
-      const now = getSyncedNow();
-      const remainingMs = timerEndTime - now;
-      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-      
-      setTimer(remainingSeconds);
-
-      if (remainingSeconds <= 6 && remainingSeconds > 1) {
-        playSound('tick');
-      }
-
-      if (remainingSeconds <= 0) {
-        if (isFirestoreOffline || dbConnectionStatus === 'Disconnected' || isQuotaExceeded) {
-          triggerStateTransitionOffline();
-        } else {
-          triggerStateTransitionIfNeeded();
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [timerEndTime, phase, adminState.isPaused, isFirestoreOffline, dbConnectionStatus, isQuotaExceeded]);
 
   // Update live prediction for Admin (Lowest Pool)
   useEffect(() => {
@@ -2365,6 +2437,58 @@ export default function App() {
     return approvedDeposits - approvedWithdrawals;
   };
 
+  const uploadToFreeImageHost = async (base64Data: string): Promise<string> => {
+    try {
+      // 1. Try ImgBB if key is configured
+      const imgbbKey = (import.meta as any).env?.VITE_IMGBB_API_KEY;
+      if (imgbbKey) {
+        const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+        const formData = new FormData();
+        formData.append("image", cleanBase64);
+        
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbKey}`, {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && json.data.url) {
+            console.log("[ImgBB] Image uploaded successfully:", json.data.url);
+            return json.data.url;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[ImgBB] Upload failed, trying fallback:", err);
+    }
+
+    // 2. Fallback to tmpfiles.org (completely free and anonymous, no key required)
+    try {
+      const response = await fetch(base64Data);
+      const blob = await response.blob();
+      const formData = new FormData();
+      formData.append("file", blob, "screenshot.png");
+
+      const res = await fetch("https://tmpfiles.org/api/v1/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.url) {
+          const directUrl = json.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+          console.log("[tmpfiles.org] Anonymous upload success:", directUrl);
+          return directUrl;
+        }
+      }
+    } catch (err) {
+      console.error("[tmpfiles.org] Upload failed:", err);
+    }
+
+    // Return original base64 if both fail
+    return base64Data;
+  };
+
   const handleDeposit = async () => {
     if (depositStep === 1) {
       const amt = parseFloat(transactionAmount);
@@ -2392,21 +2516,28 @@ export default function App() {
     try {
       if (!currentUser) return;
       
-      let finalScreenshotUrl = screenshotBase64;
+      addNotification("Uploading screenshot to free hosting...", "info");
       
-      // Upload to Firebase Storage
-      if (screenshotBase64 && screenshotBase64.startsWith('data:image')) {
-        try {
-          const storageRef = ref(storage, `deposits/${currentUser.uid}_${Date.now()}.jpg`);
-          await uploadString(storageRef, screenshotBase64, 'data_url');
-          finalScreenshotUrl = await getDownloadURL(storageRef);
-        } catch (storageError) {
-          console.error("Storage upload failed, falling back to base64:", storageError);
-          // Fallback to base64 if storage is not configured or fails
-        }
+      // Upload using our free image host handler
+      const finalScreenshotUrl = await uploadToFreeImageHost(screenshotBase64);
+      const proofId = Math.random().toString(36).substring(2, 15);
+      
+      // Save to Cloudflare D1 via Worker
+      try {
+        await cloudflareAPI.createPaymentProof({
+          id: proofId,
+          user_email: currentUser.email || 'unknown@user.com',
+          screenshot_url: finalScreenshotUrl,
+          amount: amt
+        });
+        console.log("[D1] Saved payment proof successfully");
+      } catch (cfErr) {
+        console.warn("[D1] Save failed, falling back to local/Firestore behavior:", cfErr);
       }
 
+      // Also save to Firestore for local fallback sync and real-time dashboard compatibility
       await addDoc(collection(db, dPath), {
+        id: proofId,
         userId: currentUser.uid,
         email: currentUser.email,
         amount: amt,
@@ -2472,6 +2603,88 @@ export default function App() {
       }
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `depositRequests/${requestId}`);
+    }
+  };
+
+  const handleApprovePaymentProof = async (proofId: string, userEmail: string, amount: number) => {
+    try {
+      addNotification(`Approving proof...`, 'info');
+      
+      // 1. D1 Update
+      try {
+        await cloudflareAPI.updatePaymentProofStatus(proofId, 'approved');
+        addNotification(`Proof approved on Cloudflare Worker D1!`, 'win');
+      } catch (cfErr) {
+        console.warn("Cloudflare API error approving proof, falling back to local simulation", cfErr);
+      }
+
+      // 2. Fallback Firebase update: find the matching deposit request and approve it too
+      try {
+        const q = query(collection(db, 'depositRequests'), where('id', '==', proofId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docId = snap.docs[0].id;
+          const depositData = snap.docs[0].data();
+          const userId = depositData.userId;
+          await updateDoc(doc(db, 'depositRequests', docId), {
+            status: 'approved',
+            processedAt: Date.now()
+          });
+          
+          // Also update the balance in Firebase users collection
+          const userDoc = doc(db, 'users', userId);
+          await updateDoc(userDoc, {
+            balance: increment(amount)
+          });
+          console.log("[Firestore] Fallback updated deposit request and user balance");
+        }
+      } catch (firestoreErr) {
+        console.warn("Firestore sync for payment proof approval failed:", firestoreErr);
+      }
+
+      // Refresh admin data
+      fetchAdminData(true);
+      addNotification(`₹${amount} coins added to ${userEmail}!`, 'win');
+    } catch (err) {
+      console.error("Failed to approve payment proof:", err);
+      addNotification("Approval failed. Please try again.", "info");
+    }
+  };
+
+  const handleRejectPaymentProof = async (proofId: string) => {
+    try {
+      addNotification(`Rejecting proof...`, 'info');
+      
+      // 1. D1 Update
+      try {
+        await cloudflareAPI.updatePaymentProofStatus(proofId, 'rejected');
+        addNotification(`Proof rejected on Cloudflare Worker D1!`, 'info');
+      } catch (cfErr) {
+        console.warn("Cloudflare API error rejecting proof, falling back", cfErr);
+      }
+
+      // 2. Fallback Firebase update
+      try {
+        const q = query(collection(db, 'depositRequests'), where('id', '==', proofId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docId = snap.docs[0].id;
+          await updateDoc(doc(db, 'depositRequests', docId), {
+            status: 'rejected',
+            processedAt: Date.now()
+          });
+          console.log("[Firestore] Fallback marked deposit request as rejected");
+        }
+      } catch (firestoreErr) {
+        console.warn("Firestore sync for payment proof rejection failed:", firestoreErr);
+      }
+
+      // Refresh admin data
+      fetchAdminData(true);
+      addNotification("Proof rejected successfully.", "info");
+    } catch (err) {
+      console.error("Failed to reject payment proof:", err);
+      addNotification("Rejection failed.", "info");
     }
   };
 
@@ -3135,7 +3348,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex-1 flex gap-1 justify-end landscape:justify-between landscape:grid landscape:grid-cols-5 landscape:gap-1">
-            {[100, 200, 500, 1000, 5000].map(amt => (
+            {[10, 15, 25, 50, 70].map(amt => (
               <button 
                 key={amt}
                 onClick={() => setBetAmount(amt)}
@@ -3151,7 +3364,7 @@ export default function App() {
 
         {/* Main Grid */}
         <main className="flex-1 px-3 py-3 overflow-y-auto custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
-          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 sm:gap-3 landscape:gap-2.5 mb-4">
+          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 sm:gap-3 landscape:gap-1.5 mb-4">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
@@ -3466,6 +3679,7 @@ export default function App() {
                         { id: 'users', label: 'USERS', icon: Users, color: 'text-blue-500' },
                         { id: 'admins', label: 'ADMINS', icon: ShieldCheck, color: 'text-red-500' },
                         { id: 'deposits', label: 'PAY', icon: Wallet, color: 'text-green-500' },
+                        { id: 'payment_proofs', label: 'PROOFS', icon: Camera, color: 'text-teal-500' },
                         { id: 'withdrawals', label: 'OUTS', icon: TrendingUp, color: 'text-red-500' },
                         { id: 'dealers', label: 'DEALERS', icon: ShieldCheck, color: 'text-indigo-500' },
                         { id: 'bets', label: 'BETS', icon: History, color: 'text-orange-500' },
@@ -4800,6 +5014,103 @@ $$;`}
                                )}
                             </div>
                           ))}
+                        </div>
+                      ) : adminTab === 'payment_proofs' ? (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-xs font-black text-slate-400 tracking-widest uppercase flex items-center gap-2">
+                              <Camera size={14} className="text-teal-500" />
+                              Payment Proofs (D1 + ImgBB)
+                            </h3>
+                            <button
+                              onClick={() => fetchAdminData(true)}
+                              className="px-2.5 py-1 bg-slate-900 border border-white/5 text-[9px] font-black uppercase text-slate-400 hover:text-white rounded-lg transition-all"
+                            >
+                              SYNC PROOFS
+                            </button>
+                          </div>
+
+                          {paymentProofs.length === 0 ? (
+                            <div className="bg-slate-900 border border-white/5 border-dashed rounded-3xl p-10 text-center space-y-4">
+                              <Camera size={36} className="mx-auto text-slate-600" />
+                              <div>
+                                <h3 className="text-xs font-black text-white uppercase tracking-widest">No Proofs Found</h3>
+                                <p className="text-[9px] text-slate-500 uppercase mt-1">
+                                  No payment screenshots have been uploaded or synchronised yet.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            paymentProofs.map(proof => (
+                              <div key={proof.id} className="bg-slate-900 border border-white/5 rounded-2xl p-5 relative overflow-hidden group">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div>
+                                    <div className="text-xs font-black text-white">{proof.user_email}</div>
+                                    <div className="text-[9px] text-slate-500 mt-0.5">
+                                      ID: {proof.id} • {new Date(proof.created_at || Date.now()).toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1.5">
+                                    <div className="text-xl font-black text-emerald-400">₹{proof.amount}</div>
+                                    <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                                      proof.status === 'approved' 
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                        : proof.status === 'rejected' 
+                                        ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse'
+                                    }`}>
+                                      {proof.status || 'pending'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {proof.screenshot_url && (
+                                  <div className="mb-4 space-y-2">
+                                    <span className="text-slate-500 uppercase font-black text-[7px] block">Screenshot Proof</span>
+                                    <div className="relative w-full h-44 bg-slate-950 rounded-xl overflow-hidden border border-white/5 group-hover:border-white/15 transition-all">
+                                      <img 
+                                        src={proof.screenshot_url} 
+                                        alt="Screenshot proof" 
+                                        className="w-full h-full object-contain"
+                                      />
+                                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                        <button 
+                                          onClick={() => window.open(proof.screenshot_url, '_blank')}
+                                          className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-[9px] uppercase rounded-xl shadow-lg shadow-teal-500/20 transition-all flex items-center gap-1.5"
+                                        >
+                                          <Camera size={12} />
+                                          Open Screenshot Link
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {proof.status === 'pending' ? (
+                                  <div className="grid grid-cols-2 gap-2 mt-2">
+                                    <button 
+                                      onClick={() => handleRejectPaymentProof(proof.id)} 
+                                      className="bg-red-600/10 text-red-500 border border-red-500/20 hover:bg-red-600 hover:text-white py-2 rounded-xl text-[10px] font-black uppercase transition-all"
+                                    >
+                                      REJECT PROOF
+                                    </button>
+                                    <button 
+                                      onClick={() => handleApprovePaymentProof(proof.id, proof.user_email, proof.amount)} 
+                                      className="bg-teal-500 hover:bg-teal-400 text-slate-950 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-teal-500/20 transition-all"
+                                    >
+                                      APPROVE & ADD COINS
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 text-center py-2 bg-slate-950/40 rounded-xl border border-white/5">
+                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
+                                      Processed • No further actions available
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
                         </div>
                       ) : adminTab === 'bets' ? (
                         <div className="space-y-6">
