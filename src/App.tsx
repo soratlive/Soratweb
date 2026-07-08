@@ -59,7 +59,9 @@ import {
   MessageCircle,
   Link,
   Copy,
-  Menu
+  Menu,
+  Database,
+  Terminal
 } from 'lucide-react';
 import { 
   GAME_SLOTS, 
@@ -517,6 +519,7 @@ export default function App() {
 
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [usersViewMode, setUsersViewMode] = useState<'sql' | 'cards'>('sql');
   const [earningsFilter, setEarningsFilter] = useState<'hour' | 'day' | 'week' | 'month' | 'year' | 'all'>('all');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -1499,8 +1502,15 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
+        try {
+          const token = await user.getIdToken();
+          localStorage.setItem('sorat_jwt_token', token);
+        } catch (tokenErr) {
+          console.warn('[Firebase Auth] Failed to acquire ID token for Cloudflare:', tokenErr);
+        }
         fetchUserProfile(user);
       } else {
+        localStorage.removeItem('sorat_jwt_token');
         setUserProfile(null);
         setBalance(0);
         setIsAuthModalOpen(true);
@@ -4178,64 +4188,188 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="space-y-3">
-                            {allUsers.filter(u => (u.role !== 'admin') && ((u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()))).map(user => (
-                              <div key={user.id} className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex justify-between items-center group relative font-semibold">
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-black text-white">{user.displayName || user.email || 'Unregistered Player'}</span>
-                                  <span className="text-[9px] text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{user.email || 'No email stored'}</span>
-                                  <div className="flex gap-2 mt-2">
-                                     <span 
-                                      onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)}
-                                      className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white transition-all">
-                                       ₹{user.balance?.toLocaleString()}
-                                      </span>
-                                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-700/50 text-slate-500'}`}>
-                                        {user.role || 'user'}
-                                      </span>
-                                   </div>
-                                  <div className="mt-3 flex gap-1.5 flex-wrap">
-                                    <button 
-                                      onClick={() => handleAdjustBalance(user.id, 100)}
-                                      className="text-[7px] px-1.5 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
-                                    >
-                                      + ₹100
-                                    </button>
-                                    <button 
-                                      onClick={() => handleAdjustBalance(user.id, 500)}
-                                      className="text-[7px] px-1.5 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
-                                    >
-                                      + ₹500
-                                    </button>
-                                    <button 
-                                      onClick={() => handleAdjustBalance(user.id, -100)}
-                                      className="text-[7px] px-1.5 py-1 bg-red-600/10 text-red-500 border border-red-500/10 rounded font-black hover:bg-red-600 hover:text-white transition-all whitespace-nowrap"
-                                    >
-                                      - ₹100
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="flex flex-col gap-2 scale-90 sm:scale-100 origin-right">
-                                  {currentUser?.email === 'nikhilrv8055@gmail.com' && (
-                                    <button 
-                                      onClick={() => handleToggleUserAdmin(user.id, user.role)} 
-                                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl border transition-all ${user.role === 'admin' ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-slate-800 border-white/10 text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                                      title={user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
-                                    >
-                                      <ShieldCheck size={14} />
-                                      <span className="text-[9px] font-black uppercase tracking-widest">{user.role === 'admin' ? 'REVOKE' : 'ADMIN'}</span>
-                                    </button>
-                                  )}
-                                  <button 
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-600 hover:text-white transition-all"
-                                  >
-                                    <UserMinus size={14} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">REMOVE</span>
-                                  </button>
-                                </div>
+                          {/* Cloudflare D1 Database Engine Selector Toggle */}
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/40 p-2 rounded-2xl border border-white/5">
+                            <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 select-none self-start">
+                              <button 
+                                onClick={() => setUsersViewMode('sql')}
+                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${usersViewMode === 'sql' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'}`}
+                              >
+                                <Database size={12} />
+                                D1 SQL Grid
+                              </button>
+                              <button 
+                                onClick={() => setUsersViewMode('cards')}
+                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${usersViewMode === 'cards' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'}`}
+                              >
+                                <Users size={12} />
+                                Classic Cards
+                              </button>
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                              Connected Database: Cloudflare Workers + D1 DB
+                            </span>
+                          </div>
+
+                          {/* D1 live visual terminal header */}
+                          {usersViewMode === 'sql' && (
+                            <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/10 font-mono text-left relative overflow-hidden group">
+                              <div className="absolute top-0 right-0 p-2 text-slate-800 pointer-events-none group-hover:text-amber-500/20 transition-all font-sans font-black text-[9px] tracking-widest uppercase">Cloudflare D1 Query Engine</div>
+                              <div className="flex items-center gap-2 text-amber-500 text-xs">
+                                <Terminal size={14} className="animate-pulse" />
+                                <span className="font-bold tracking-widest text-[10px]">D1-CONSOLE:/$</span>
+                                <span className="text-white">SELECT id, name, email, role, balance FROM users WHERE name LIKE &apos;%{userSearchQuery}%&apos;;</span>
                               </div>
-                            ))}
+                              <div className="text-[9px] text-slate-500 uppercase mt-1.5 font-sans font-bold flex gap-4">
+                                <span>• ENGINE: SQLITE (D1 EDGE)</span>
+                                <span>• ROWS RETURNED: {allUsers.filter(u => u.role !== 'admin').length}</span>
+                                <span>• STATUS: ACTIVE</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            {usersViewMode === 'sql' ? (
+                              <div className="overflow-x-auto bg-slate-900/80 rounded-2xl border border-white/5 custom-scrollbar shadow-2xl">
+                                <table className="w-full text-left border-collapse min-w-[700px]">
+                                  <thead>
+                                    <tr className="border-b border-white/5 bg-slate-950/60 text-[9px] font-black uppercase text-amber-500 tracking-widest select-none">
+                                      <th className="py-3.5 px-4">ID</th>
+                                      <th className="py-3.5 px-4">Name</th>
+                                      <th className="py-3.5 px-4">Email</th>
+                                      <th className="py-3.5 px-4">Role</th>
+                                      <th className="py-3.5 px-4">Balance</th>
+                                      <th className="py-3.5 px-4">Quick Adjust</th>
+                                      <th className="py-3.5 px-4 text-right">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-white/5">
+                                    {allUsers.filter(u => (u.role !== 'admin') && ((u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()))).map(user => (
+                                      <tr key={user.id} className="hover:bg-white/[0.02] transition-colors font-semibold">
+                                        <td className="py-3.5 px-4 font-mono text-[9px] text-slate-400 select-all truncate max-w-[100px]">{user.id}</td>
+                                        <td className="py-3.5 px-4 text-xs font-black text-white">{user.displayName || user.name || 'Unregistered Player'}</td>
+                                        <td className="py-3.5 px-4 text-[10px] text-slate-400 font-medium">{user.email || 'No email stored'}</td>
+                                        <td className="py-3.5 px-4">
+                                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                                            {user.role || 'user'}
+                                          </span>
+                                        </td>
+                                        <td className="py-3.5 px-4">
+                                          <span 
+                                            onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)} 
+                                            className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-xl cursor-pointer hover:bg-amber-500 hover:text-slate-950 transition-all whitespace-nowrap"
+                                          >
+                                            ₹{(user.balance || 0).toLocaleString()}
+                                          </span>
+                                        </td>
+                                        <td className="py-3.5 px-4">
+                                          <div className="flex gap-1.5">
+                                            <button 
+                                              onClick={() => handleAdjustBalance(user.id, 100)} 
+                                              className="text-[8px] px-2 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded-md font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
+                                            >
+                                              +₹100
+                                            </button>
+                                            <button 
+                                              onClick={() => handleAdjustBalance(user.id, 500)} 
+                                              className="text-[8px] px-2 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded-md font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
+                                            >
+                                              +₹500
+                                            </button>
+                                            <button 
+                                              onClick={() => handleAdjustBalance(user.id, -100)} 
+                                              className="text-[8px] px-2 py-1 bg-red-600/10 text-red-500 border border-red-500/10 rounded-md font-black hover:bg-red-600 hover:text-white transition-all whitespace-nowrap"
+                                            >
+                                              -₹100
+                                            </button>
+                                          </div>
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right">
+                                          <div className="flex justify-end gap-1.5 scale-90 origin-right">
+                                            {currentUser?.email === 'nikhilrv8055@gmail.com' && (
+                                              <button 
+                                                onClick={() => handleToggleUserAdmin(user.id, user.role)} 
+                                                className={`p-2 rounded-xl border transition-all ${user.role === 'admin' ? 'bg-red-600 border-red-500 text-white' : 'bg-slate-800 border-white/10 text-slate-400 hover:text-white hover:bg-slate-700'}`} 
+                                                title={user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
+                                              >
+                                                <ShieldCheck size={12} />
+                                              </button>
+                                            )}
+                                            <button 
+                                              onClick={() => handleDeleteUser(user.id)} 
+                                              className="p-2 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-600 hover:text-white transition-all"
+                                              title="Remove Player"
+                                            >
+                                              <UserMinus size={12} />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {allUsers.filter(u => (u.role !== 'admin') && ((u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()))).map(user => (
+                                  <div key={user.id} className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex justify-between items-center group relative font-semibold">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-black text-white">{user.displayName || user.email || 'Unregistered Player'}</span>
+                                      <span className="text-[9px] text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{user.email || 'No email stored'}</span>
+                                      <div className="flex gap-2 mt-2">
+                                         <span 
+                                          onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)}
+                                          className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white transition-all">
+                                           ₹{user.balance?.toLocaleString()}
+                                          </span>
+                                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                                            {user.role || 'user'}
+                                          </span>
+                                       </div>
+                                      <div className="mt-3 flex gap-1.5 flex-wrap">
+                                        <button 
+                                          onClick={() => handleAdjustBalance(user.id, 100)}
+                                          className="text-[7px] px-1.5 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
+                                        >
+                                          + ₹100
+                                        </button>
+                                        <button 
+                                          onClick={() => handleAdjustBalance(user.id, 500)}
+                                          className="text-[7px] px-1.5 py-1 bg-emerald-600/10 text-emerald-500 border border-emerald-500/10 rounded font-black hover:bg-emerald-600 hover:text-white transition-all whitespace-nowrap"
+                                        >
+                                          + ₹500
+                                        </button>
+                                        <button 
+                                          onClick={() => handleAdjustBalance(user.id, -100)}
+                                          className="text-[7px] px-1.5 py-1 bg-red-600/10 text-red-500 border border-red-500/10 rounded font-black hover:bg-red-600 hover:text-white transition-all whitespace-nowrap"
+                                        >
+                                          - ₹100
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2 scale-90 sm:scale-100 origin-right">
+                                      {currentUser?.email === 'nikhilrv8055@gmail.com' && (
+                                        <button 
+                                          onClick={() => handleToggleUserAdmin(user.id, user.role)} 
+                                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl border transition-all ${user.role === 'admin' ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-slate-800 border-white/10 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                          title={user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
+                                        >
+                                          <ShieldCheck size={14} />
+                                          <span className="text-[9px] font-black uppercase tracking-widest">{user.role === 'admin' ? 'REVOKE' : 'ADMIN'}</span>
+                                        </button>
+                                      )}
+                                      <button 
+                                        onClick={() => handleDeleteUser(user.id)}
+                                        className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-600 hover:text-white transition-all"
+                                      >
+                                        <UserMinus size={14} />
+                                        <span className="text-[9px] font-black uppercase tracking-widest">REMOVE</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
 
                             {allUsers.filter(u => (u.role !== 'admin') && ((u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()))).length === 0 && (
                               <div className="bg-slate-900 border border-white/5 rounded-3xl p-6 text-center space-y-4">
