@@ -383,7 +383,7 @@ const SlotCard = React.memo(({
       onClick={(e) => onBet(slot.id, e)}
       disabled={phase !== 'betting'}
       className={`
-        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-1.5 rounded-xl sm:rounded-2xl landscape:rounded-xl border transition-all duration-300 w-full aspect-square overflow-hidden
+        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-2.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square overflow-hidden
         ${phase === 'betting' ? 'hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)]' : 'opacity-80'}
         ${myBet > 0 ? 'border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'border-white/5 bg-slate-900/40'}
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
@@ -402,21 +402,21 @@ const SlotCard = React.memo(({
           </div>
         </>
       ) : (
-        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-0.5 h-7 w-7 sm:h-9 sm:w-9 landscape:h-5 landscape:w-5 relative z-10 transition-transform duration-350 group-hover:scale-110`} />
+        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-1.5 h-7 w-7 sm:h-9 sm:w-9 landscape:h-6.5 landscape:w-6.5 relative z-10 transition-transform duration-350 group-hover:scale-110`} />
       )}
-      <span className="text-[10px] sm:text-xs landscape:text-[8px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
+      <span className="text-[10px] sm:text-xs landscape:text-[9.5px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
         {customName || slot.name}
       </span>
-      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1 landscape:right-1 opacity-90 z-20">
-         <span className="text-[7.5px] sm:text-[8px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
-           ₹{slotPool}
+      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1.5 landscape:right-1.5 opacity-90 z-20">
+         <span className="text-[7.5px] sm:text-[8px] landscape:text-[7px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
+            ₹{slotPool}
          </span>
       </div>
       {myBet > 0 && (
         <motion.div 
           initial={{ scale: 0.5, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="absolute -top-1 -left-1 landscape:-top-0.5 landscape:-left-0.5 bg-yellow-500 text-slate-950 px-2 py-0.5 landscape:px-1.5 landscape:py-0 rounded-lg shadow-lg shadow-yellow-500/40 text-[8px] landscape:text-[7px] font-black z-30 uppercase"
+          className="absolute -top-1 -left-1 bg-yellow-500 text-slate-950 px-2 py-0.5 rounded-lg shadow-lg shadow-yellow-500/40 text-[8px] font-black z-30 uppercase"
         >
           ₹{myBet}
         </motion.div>
@@ -3151,7 +3151,7 @@ export default function App() {
 
         {/* Main Grid */}
         <main className="flex-1 px-3 py-3 overflow-y-auto custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
-          <div className="grid grid-cols-3 landscape:grid-cols-6 gap-2 sm:gap-3 landscape:gap-1.5 mb-4">
+          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 sm:gap-3 landscape:gap-2.5 mb-4">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
