@@ -16,6 +16,7 @@ interface ExecutionContext {
 export interface Env {
   // D1 Database Binding configured in wrangler.toml
   DB: D1Database;
+  JWT_SECRET?: string;
 }
 
 // Helper to parse base64 JWT payload safely at the Edge
@@ -23,12 +24,148 @@ function decodeJWT(token: string): any {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    let payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payloadBase64.length % 4) {
+      payloadBase64 += '=';
+    }
     const decoded = atob(payloadBase64);
     return JSON.parse(decoded);
   } catch (e) {
     return null;
   }
+}
+
+// Google ID token verification at the Edge with JWKs and standard Web Crypto APIs
+async function verifyGoogleIdToken(idToken: string): Promise<any> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) {
+    throw new Error('Invalid JWT format');
+  }
+
+  const header = decodeJWT(parts[0]);
+  const payload = decodeJWT(parts[1]);
+  if (!header || !payload) {
+    throw new Error('Could not decode JWT parts');
+  }
+
+  // Check expiration (with a generous 60-second clock skew allowance)
+  const nowSecs = Math.floor(Date.now() / 1000);
+  if (payload.exp && payload.exp < nowSecs - 60) {
+    throw new Error('Google ID token is expired');
+  }
+
+  // Verify Issuer
+  const iss = payload.iss;
+  if (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com') {
+    throw new Error('Invalid token issuer');
+  }
+
+  // Try verifying using Google public certs
+  try {
+    const certsResponse = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!certsResponse.ok) {
+      throw new Error(`Failed to fetch certs: ${certsResponse.statusText}`);
+    }
+    const certs: any = await certsResponse.json();
+    const kid = header.kid;
+    const jwk = certs.keys.find((key: any) => key.kid === kid);
+
+    if (!jwk) {
+      throw new Error(`JWK not found for kid: ${kid}`);
+    }
+
+    // Convert JWT signature part from base64url to Uint8Array
+    let signatureStr = parts[2].replace(/-/g, '+').replace(/_/g, '/');
+    while (signatureStr.length % 4) {
+      signatureStr += '=';
+    }
+    const signatureBin = atob(signatureStr);
+    const signatureArr = new Uint8Array(signatureBin.length);
+    for (let i = 0; i < signatureBin.length; i++) {
+      signatureArr[i] = signatureBin.charCodeAt(i);
+    }
+
+    // Convert header + payload string to Uint8Array
+    const encoder = new TextEncoder();
+    const dataArr = encoder.encode(`${parts[0]}.${parts[1]}`);
+
+    // Import the public JWK and verify
+    const publicKey = await crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: { name: 'SHA-256' }
+      },
+      false,
+      ['verify']
+    );
+
+    const isValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      publicKey,
+      signatureArr,
+      dataArr
+    );
+
+    if (!isValid) {
+      throw new Error('Crypto verification failed: invalid signature');
+    }
+
+    return payload;
+  } catch (error: any) {
+    console.warn('[Worker Auth] Local JWK crypto verification failed. Attempting Google tokeninfo fallback...', error.message);
+    
+    // Fallback: Verify token directly using Google's tokeninfo API
+    try {
+      const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
+      const tokenInfoResponse = await fetch(tokenInfoUrl);
+      if (tokenInfoResponse.ok) {
+        const info: any = await tokenInfoResponse.json();
+        if (info.error_description) {
+          throw new Error(info.error_description);
+        }
+        return info;
+      } else {
+        throw new Error(`Tokeninfo API failed with status ${tokenInfoResponse.status}`);
+      }
+    } catch (fallbackError: any) {
+      console.error('[Worker Auth] Google tokeninfo fallback also failed:', fallbackError.message);
+      throw new Error(`Google ID Token verification failed: ${error.message} && ${fallbackError.message}`);
+    }
+  }
+}
+
+// Generate secure edge JWT signed with HMAC-SHA256 standard
+async function generateJWT(payload: any, secret: string): Promise<string> {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const base64UrlHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const base64UrlPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  const tokenInput = `${base64UrlHeader}.${base64UrlPayload}`;
+  
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    encoder.encode(tokenInput)
+  );
+  
+  const base64UrlSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+    
+  return `${tokenInput}.${base64UrlSignature}`;
 }
 
 // Security verification helper to ensure only admins can access sensitive D1 endpoints
@@ -106,6 +243,86 @@ export default {
             ...corsHeaders
           }
         });
+      }
+
+      // Route: POST /api/auth/google - Verify Google Sign-In ID Token, register/sync user, and return JWT Session
+      if (url.pathname === '/api/auth/google' && method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const { id_token } = body;
+
+          if (!id_token) {
+            return new Response(JSON.stringify({ error: 'Missing parameter: id_token' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const payload = await verifyGoogleIdToken(id_token);
+          const sub = payload.sub;
+          const email = payload.email || `${sub}@sorat.live`;
+          const name = payload.name || payload.given_name || 'Google Player';
+
+          // Preserve existing role and balance if user already exists
+          let existingUser: any = await env.DB.prepare(
+            'SELECT role, balance FROM users WHERE id = ?'
+          ).bind(sub).first();
+
+          let finalRole = 'user';
+          let finalBalance = 0;
+
+          if (existingUser) {
+            finalRole = existingUser.role || 'user';
+            finalBalance = existingUser.balance || 0;
+          } else {
+            if (email.toLowerCase().trim() === 'nikhilrv8055@gmail.com') {
+              finalRole = 'admin';
+            }
+          }
+
+          // Securely upsert user in D1 database
+          await env.DB.prepare(
+            'INSERT INTO users (id, name, email, role, balance, mobile) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email'
+          )
+          .bind(sub, name, email, finalRole, finalBalance, '')
+          .run();
+
+          // Generate secure edge session JWT
+          const sessionPayload = {
+            sub: sub,
+            uid: sub,
+            email: email,
+            name: name,
+            role: finalRole,
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days active
+          };
+
+          const jwtSecret = env.JWT_SECRET || 'sorat_live_jwt_super_secret_key_12345!';
+          const customToken = await generateJWT(sessionPayload, jwtSecret);
+
+          return new Response(JSON.stringify({
+            success: true,
+            token: customToken,
+            user: {
+              id: sub,
+              uid: sub,
+              name: name,
+              email: email,
+              role: finalRole,
+              balance: finalBalance
+            }
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (err: any) {
+          console.error('[Google Auth Error]:', err.message || err);
+          return new Response(JSON.stringify({ error: `Authentication failed: ${err.message || err}` }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
       }
 
       // Route: POST /api/users - Create/Register a new user (Self-registration)

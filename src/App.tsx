@@ -383,7 +383,7 @@ const SlotCard = React.memo(({
       onClick={(e) => onBet(slot.id, e)}
       disabled={phase !== 'betting'}
       className={`
-        relative group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square overflow-hidden
+        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-1.5 rounded-xl sm:rounded-2xl landscape:rounded-xl border transition-all duration-300 w-full aspect-square overflow-hidden
         ${phase === 'betting' ? 'hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)]' : 'opacity-80'}
         ${myBet > 0 ? 'border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'border-white/5 bg-slate-900/40'}
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
@@ -402,13 +402,13 @@ const SlotCard = React.memo(({
           </div>
         </>
       ) : (
-        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 h-7 w-7 sm:h-9 sm:w-9 relative z-10 transition-transform duration-350 group-hover:scale-110`} />
+        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-0.5 h-7 w-7 sm:h-9 sm:w-9 landscape:h-5 landscape:w-5 relative z-10 transition-transform duration-350 group-hover:scale-110`} />
       )}
-      <span className="text-[10px] sm:text-xs font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
+      <span className="text-[10px] sm:text-xs landscape:text-[8px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
         {customName || slot.name}
       </span>
-      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 opacity-90 z-20">
-         <span className="text-[7.5px] sm:text-[8px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
+      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1 landscape:right-1 opacity-90 z-20">
+         <span className="text-[7.5px] sm:text-[8px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
            ₹{slotPool}
          </span>
       </div>
@@ -416,7 +416,7 @@ const SlotCard = React.memo(({
         <motion.div 
           initial={{ scale: 0.5, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="absolute -top-1 -left-1 bg-yellow-500 text-slate-950 px-2 py-0.5 rounded-lg shadow-lg shadow-yellow-500/40 text-[8px] font-black z-30 uppercase"
+          className="absolute -top-1 -left-1 landscape:-top-0.5 landscape:-left-0.5 bg-yellow-500 text-slate-950 px-2 py-0.5 landscape:px-1.5 landscape:py-0 rounded-lg shadow-lg shadow-yellow-500/40 text-[8px] landscape:text-[7px] font-black z-30 uppercase"
         >
           ₹{myBet}
         </motion.div>
@@ -1478,6 +1478,21 @@ export default function App() {
         await setDoc(userRef, newProfile);
         setUserProfile(newProfile);
         setBalance(0);
+
+        // Sync new registration to Cloudflare D1 SQL database
+        try {
+          await cloudflareAPI.createUser({
+            id: user.uid,
+            name: newProfile.displayName,
+            email: user.email || `${user.uid}@sorat.live`,
+            role: newProfile.role,
+            balance: 0,
+            mobile: newProfile.mobile
+          });
+          console.log('[Cloudflare D1] User created & synchronized successfully!');
+        } catch (syncErr) {
+          console.warn('[Cloudflare D1] Non-blocking D1 registration sync note:', syncErr);
+        }
       }
     } catch (error) {
       handleAppError(error, OperationType.GET, `users/${user.uid}`);
@@ -2812,6 +2827,41 @@ export default function App() {
     setIsSyncingAuth(false);
   };
 
+  const handleGoogleSignIn = async () => {
+    if (isAuthLoading) return;
+    setIsAuthLoading(true);
+    addNotification("Starting Google Sign-In...", 'info');
+    try {
+      const result = await signInWithGoogle();
+      if (result?.user) {
+        addNotification(`Welcome, ${result.user.displayName || 'Player'}!`, 'win');
+        
+        // Retrieve ID token and save to localStorage
+        const token = await result.user.getIdToken();
+        localStorage.setItem('sorat_jwt_token', token);
+
+        // Sync to Cloudflare Worker to issue custom JWT and save to D1 database
+        try {
+          const backendResult = await cloudflareAPI.googleSignIn(token);
+          if (backendResult?.token) {
+            localStorage.setItem('sorat_jwt_token', backendResult.token);
+            console.log('[Google Auth] Secured JWT session issued by Cloudflare Edge!');
+          }
+        } catch (syncErr: any) {
+          console.warn('[Google Auth] Cloudflare sync non-blocking error:', syncErr?.message || syncErr);
+        }
+
+        setIsAuthModalOpen(false);
+        setIsProfileOpen(false);
+      }
+    } catch (error: any) {
+      console.error("[Google Login] Error:", error);
+      addNotification(error?.message || "Google Sign-In failed.", 'info');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   const handleEmailPasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isAuthLoading) return;
@@ -3101,7 +3151,7 @@ export default function App() {
 
         {/* Main Grid */}
         <main className="flex-1 px-3 py-3 overflow-y-auto custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
-          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 sm:gap-3 mb-4">
+          <div className="grid grid-cols-3 landscape:grid-cols-6 gap-2 sm:gap-3 landscape:gap-1.5 mb-4">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
@@ -5701,6 +5751,27 @@ $$;`}
                       )}
                     </button>
                   </form>
+
+                  <div className="flex items-center my-1 pt-1">
+                    <div className="flex-grow border-t border-white/5"></div>
+                    <span className="mx-3 text-[9px] text-slate-500 font-extrabold uppercase tracking-widest">Or use safe access</span>
+                    <div className="flex-grow border-t border-white/5"></div>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isAuthLoading}
+                    className="w-full bg-slate-950 hover:bg-slate-900 border border-white/10 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg hover:border-slate-700 flex items-center justify-center gap-2.5 mt-1"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.66-.35-1.36-.35-2.09z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                  </button>
                 </div>
               </div>
             </motion.div>

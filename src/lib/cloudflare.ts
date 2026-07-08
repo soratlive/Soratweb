@@ -79,6 +79,9 @@ export const cloudflareAPI = {
   createUser: async (userData: any): Promise<any> => {
     return await workerFetch('/users', 'POST', userData);
   },
+  googleSignIn: async (idToken: string): Promise<any> => {
+    return await workerFetch('/auth/google', 'POST', { id_token: idToken });
+  },
   updateUser: async (userId: string, userData: any): Promise<any> => {
     return await workerFetch(`/users/${userId}`, 'PUT', userData);
   },
