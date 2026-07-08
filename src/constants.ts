@@ -104,3 +104,6 @@ export const INITIAL_BALANCE = 5000;
 export const MULTIPLIER = 10;
 export const CYCLE_DURATION = 30; // seconds
 export const LOCK_DURATION = 5; // last 5 seconds
+
+export const DEFAULT_LOGO_URL = 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/Untitled%20design%20(2).jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9VbnRpdGxlZCBkZXNpZ24gKDIpLmpwZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODM1NDE0MjUsImV4cCI6MzMzMTk1NDE0MjV9.r-rWHLq2Iv8WASSCJi92-TOYYikqwAH3Ij9M2eDrmYY';
+

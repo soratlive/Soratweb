@@ -68,7 +68,8 @@ import {
   INITIAL_BALANCE, 
   MULTIPLIER, 
   CYCLE_DURATION, 
-  LOCK_DURATION
+  LOCK_DURATION,
+  DEFAULT_LOGO_URL
 } from './constants';
 import { Bet, GameHistory, AdminState, Notification, Dealer, DepositRequest, WithdrawalRequest, LeaderboardEntry, GamePhase, Game } from './types';
 
@@ -948,6 +949,18 @@ export default function App() {
     const savedCustomImages = localStorage.getItem('customImages');
     const savedCustomNames = localStorage.getItem('customNames');
     
+    let savedLogo = '';
+    try {
+      if (savedNotifs) {
+        const parsed = JSON.parse(savedNotifs);
+        if (parsed && parsed.appLogoUrl) {
+          savedLogo = parsed.appLogoUrl;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     const defaultNotifs = {
       winMessageTemplate: 'WIN! You won ₹{amount} with {slot}!',
       betMessageTemplate: 'Bet placed successfully on {slot}!',
@@ -966,6 +979,7 @@ export default function App() {
       upiId: savedUpi || 'nikhilrv8055@okhdfcbank',
       upiPayeeName: savedPayeeName || 'RECHARGE PORTAL',
       paymentLink: savedPaymentLink || '',
+      appLogoUrl: savedLogo || DEFAULT_LOGO_URL,
       updateInfo: {
         version: '1.0.0',
         message: 'A new version of the app is available! Please refresh to get the latest features.',
@@ -1072,6 +1086,7 @@ export default function App() {
         setAdminState(prev => ({
           ...prev,
           ...data,
+          appLogoUrl: data.appLogoUrl || prev.appLogoUrl || DEFAULT_LOGO_URL,
           isAutoWinLowest: data.isAutoWinLowest ?? true, // Default to true if missing
           forceWinner: prev.forceWinner // Keep local forceWinner state
         }));
@@ -1454,12 +1469,28 @@ export default function App() {
     const checkAppwriteSession = async () => {
       try {
         setIsAuthLoading(true);
+        
+        // Handle OAuth callback url cleanup if parameters exist
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasOauthParams = urlParams.has('userId') && urlParams.has('secret');
+        
         const user = await appwriteService.getCurrentUser();
         if (user) {
+          console.log("[Appwrite Auth] Active session found for:", user.email);
           setCurrentUser(user as any);
           setUserProfile(user);
           setBalance(user.balance);
+          setIsAuthModalOpen(false); // Hide login modal to direct user to Dashboard/Game screen
           
+          // Clear OAuth params from URL to prevent loop/refresh issues
+          if (hasOauthParams) {
+            urlParams.delete('userId');
+            urlParams.delete('secret');
+            const cleanPath = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+            window.history.replaceState({}, document.title, cleanPath);
+            addNotification("Google Sign-In completed successfully!", "win");
+          }
+
           // Set up real-time listener for user balance
           unsubscribeRealtime = appwriteService.subscribeToUser(user.uid, (updatedDoc) => {
             console.log("[Appwrite Realtime] User profile updated:", updatedDoc);
@@ -1471,6 +1502,7 @@ export default function App() {
             }
           });
         } else {
+          console.log("[Appwrite Auth] No active session found. Prompting login.");
           setCurrentUser(null);
           setUserProfile(null);
           setBalance(0);
@@ -5744,7 +5776,7 @@ $$;`}
 
                   <div className="space-y-1.5 mt-2">
                     <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                      SORAT LIVE
+                      SORAT
                     </h1>
                     <p className="text-[10px] text-blue-400 font-extrabold uppercase tracking-[0.4em] drop-shadow-sm">
                       Official Portal • 100% Secure
