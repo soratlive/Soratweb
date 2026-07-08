@@ -1,7 +1,7 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
 // Read endpoints and project ID from environment variables with safe defaults
-const ENDPOINT = (import.meta as any).env?.VITE_APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+const ENDPOINT = (import.meta as any).env?.VITE_APPWRITE_ENDPOINT || 'https://admin.sorat.in/v1';
 const PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '6a4e644b001268fb3a25';
 
 // Database, Collection, and Storage configurations
