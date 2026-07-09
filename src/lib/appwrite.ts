@@ -1,8 +1,8 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
-// Read endpoints and project ID from environment variables with safe defaults
-const ENDPOINT = (import.meta as any).env?.VITE_APPWRITE_ENDPOINT || 'https://admin.sorat.in/v1';
-const PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '6a4e644b001268fb3a25';
+// Read endpoints and project ID with explicit custom domain and project ID as requested
+const ENDPOINT = 'https://admin.sorat.in/v1';
+const PROJECT_ID = '6a4e644b001268fb3a25';
 
 // Database, Collection, and Storage configurations
 export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || 'main';
@@ -10,7 +10,7 @@ export const USERS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_USERS
 export const PROOFS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_PROOFS_COLLECTION_ID || 'payment_proofs';
 export const SCREENSHOTS_BUCKET_ID = (import.meta as any).env?.VITE_APPWRITE_BUCKET_ID || 'screenshots';
 
-// Initialize the Appwrite Client
+// Initialize the Appwrite Client explicitly with custom domain and project ID
 export const client = new Client()
   .setEndpoint(ENDPOINT)
   .setProject(PROJECT_ID);

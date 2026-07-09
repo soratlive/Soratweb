@@ -1469,23 +1469,27 @@ export default function App() {
     const checkAppwriteSession = async () => {
       try {
         setIsAuthLoading(true);
+        console.log("[Appwrite Auth] Executing direct session verification check...");
         
-        // Handle OAuth callback url cleanup if parameters exist
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasOauthParams = urlParams.has('userId') && urlParams.has('secret');
-        
+        // OAuth Redirect Success Handling: Immediately execute account.get() (via getCurrentUser)
         const user = await appwriteService.getCurrentUser();
+        
         if (user) {
-          console.log("[Appwrite Auth] Active session found for:", user.email);
+          console.log("[Appwrite Auth] Active session found for authenticated user:", user.email);
           setCurrentUser(user as any);
           setUserProfile(user);
           setBalance(user.balance);
-          setIsAuthModalOpen(false); // Hide login modal to direct user to Dashboard/Game screen
           
-          // Clear OAuth params from URL to prevent loop/refresh issues
+          // Session Verification & State Update: Completely hide/unmount login modal when user data is loaded
+          setIsAuthModalOpen(false); 
+          
+          // Clean up URL parameters if we returned from OAuth to prevent loop/refresh issues
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasOauthParams = urlParams.has('userId') && urlParams.has('secret');
           if (hasOauthParams) {
             urlParams.delete('userId');
             urlParams.delete('secret');
+            urlParams.delete('expire');
             const cleanPath = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
             window.history.replaceState({}, document.title, cleanPath);
             addNotification("Google Sign-In completed successfully!", "win");
@@ -1510,6 +1514,10 @@ export default function App() {
         }
       } catch (err) {
         console.warn("[Appwrite Auth] Session check error:", err);
+        setCurrentUser(null);
+        setUserProfile(null);
+        setBalance(0);
+        setIsAuthModalOpen(true);
       } finally {
         setIsAuthLoading(false);
       }
@@ -5719,7 +5727,7 @@ $$;`}
 
         {/* Auth Modal (Login/Register) */}
         <AnimatePresence>
-          {isAuthModalOpen && (
+          {isAuthModalOpen && !currentUser && (
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
