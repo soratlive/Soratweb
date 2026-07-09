@@ -1,7 +1,7 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
-const ENDPOINT = 'https://admin.sorat.in/v1';
+const ENDPOINT = 'https://sgp.cloud.appwrite.io/v1';
 const PROJECT_ID = '6a4e644b001268fb3a25';
 
 // Database, Collection, and Storage configurations
@@ -40,11 +40,15 @@ export const appwriteService = {
   signInWithGoogle: async (): Promise<void> => {
     try {
       console.log('[Appwrite Auth] Starting Google OAuth session...');
-      // Uses the current origin as both success and failure redirects to preserve the context
+      // Use https://play.sorat.in for production, and window.location.origin for local/preview developer environments
+      const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname.includes('.run.app')
+        ? window.location.origin
+        : 'https://play.sorat.in';
+      
       await account.createOAuth2Session(
         OAuthProvider.Google,
-        window.location.origin,
-        window.location.origin
+        redirectUrl,
+        redirectUrl
       );
     } catch (error) {
       console.error('[Appwrite Auth] Google OAuth failed:', error);

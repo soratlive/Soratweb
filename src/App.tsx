@@ -1507,17 +1507,32 @@ export default function App() {
           });
         } else {
           console.log("[Appwrite Auth] No active session found. Prompting login.");
-          setCurrentUser(null);
-          setUserProfile(null);
-          setBalance(0);
-          setIsAuthModalOpen(true);
+          // Only prompt login if we don't have a valid user
+          setCurrentUser(prev => {
+            if (prev) {
+              setIsAuthModalOpen(false);
+              return prev;
+            }
+            setUserProfile(null);
+            setBalance(0);
+            setIsAuthModalOpen(true);
+            return null;
+          });
         }
       } catch (err) {
         console.warn("[Appwrite Auth] Session check error:", err);
-        setCurrentUser(null);
-        setUserProfile(null);
-        setBalance(0);
-        setIsAuthModalOpen(true);
+        // Route Guard / Fallback: If we already have a session, do not kick the user out on glitches
+        setCurrentUser(prev => {
+          if (prev) {
+            console.log("[Appwrite Auth] Guard: Preserving active session during temporary network/endpoint glitch.");
+            setIsAuthModalOpen(false);
+            return prev;
+          }
+          setUserProfile(null);
+          setBalance(0);
+          setIsAuthModalOpen(true);
+          return null;
+        });
       } finally {
         setIsAuthLoading(false);
       }
