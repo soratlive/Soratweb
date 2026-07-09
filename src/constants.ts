@@ -40,7 +40,7 @@ export const GAME_SLOTS = [
     name: 'सूर्य', 
     icon: Sun, 
     color: 'text-yellow-400',
-    imageUrl: 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/surya.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3Jhd \/zdXJ5YS5qcGciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzgzMTA0MDc5LCJleHAiOjMzMzE5MTA0MDc5fQ.QHpRA1pBROMTh1pf8SQM_Ff7f7BvIBGzeXnryiYxlU8'
+    imageUrl: 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/surya.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9zdXJ5YS5qcGciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzgzNjI1NzIxLCJleHAiOjMzMzE5NjI1NzIxfQ.Pm0Wp7Da-wo-b7nKinQFEeTbZMbtkNdPIvCGWg_WpYE'
   },
   { 
     id: 5, 
