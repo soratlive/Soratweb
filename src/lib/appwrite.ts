@@ -4,6 +4,10 @@ import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'a
 const ENDPOINT = 'https://sgp.cloud.appwrite.io/v1';
 const PROJECT_ID = '6a4e644b001268fb3a25';
 
+// Export App URL variables for the application
+export const APP_URL = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
+export const VITE_APP_URL = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
+
 // Database, Collection, and Storage configurations
 export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || 'main';
 export const USERS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_USERS_COLLECTION_ID || 'users';
@@ -40,10 +44,8 @@ export const appwriteService = {
   signInWithGoogle: async (): Promise<void> => {
     try {
       console.log('[Appwrite Auth] Starting Google OAuth session...');
-      // Use https://play.sorat.in for production, and window.location.origin for local/preview developer environments
-      const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname.includes('.run.app')
-        ? window.location.origin
-        : 'https://play.sorat.in';
+      // Exact production redirect URL requested by user
+      const redirectUrl = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
       
       await account.createOAuth2Session(
         OAuthProvider.Google,
