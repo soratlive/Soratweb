@@ -490,40 +490,91 @@ export default function App() {
   const getSyncedNow = () => Date.now() + serverTimeOffsetRef.current;
 
   const syncTime = async () => {
+    // 1. Try `/api/game-state` first (Edge/Custom Backend API)
     try {
       const startTime = Date.now();
       const response = await fetch('/api/game-state');
-      if (!response.ok) throw new Error("API not ok");
-      const data = await response.json();
-      const endTime = Date.now();
-      
-      if (data && data.success && data.timestamp) {
-        const serverTime = data.timestamp * 1000;
-        const latency = (endTime - startTime) / 2;
-        const adjustedServerTime = serverTime + latency;
-        const offset = adjustedServerTime - Date.now();
-        serverTimeOffsetRef.current = offset;
-        console.log(`[Clock Sync API] Offset synchronized: ${offset}ms`);
-      }
-    } catch (err) {
-      console.warn("[Clock Sync API] Failed, trying fallback HEAD sync", err);
-      try {
-        const startTime = Date.now();
-        const response = await fetch('/index.html', { method: 'HEAD', cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
         const endTime = Date.now();
-        const serverTimeString = response.headers.get('date');
-        if (serverTimeString) {
-          const serverTime = new Date(serverTimeString).getTime();
+        if (data && data.success && data.timestamp) {
+          const serverTime = data.timestamp * 1000;
           const latency = (endTime - startTime) / 2;
           const adjustedServerTime = serverTime + latency;
           const offset = adjustedServerTime - Date.now();
           serverTimeOffsetRef.current = offset;
-          console.log(`[Clock Sync Fallback] Offset synchronized: ${offset}ms`);
+          console.log(`[Clock Sync API] Offset synchronized: ${offset}ms`);
+          return;
         }
-      } catch (headErr) {
-        console.error("[Clock Sync] All sync methods failed", headErr);
       }
+    } catch (e) {
+      // Ignore and continue to next fallback
     }
+
+    // 2. Try Appwrite Endpoint server to extract the HTTP 'date' header (completely CORS-safe)
+    try {
+      const startTime = Date.now();
+      const appwriteEndpoint = (appwriteClient as any).config?.endpoint || 'https://api.sorat.in/v1';
+      // Fetch the health or index of the Appwrite server
+      const response = await fetch(`${appwriteEndpoint}/health`, { method: 'GET', cache: 'no-store' });
+      const endTime = Date.now();
+      const serverTimeString = response.headers.get('date');
+      if (serverTimeString) {
+        const serverTime = new Date(serverTimeString).getTime();
+        const latency = (endTime - startTime) / 2;
+        const adjustedServerTime = serverTime + latency;
+        const offset = adjustedServerTime - Date.now();
+        serverTimeOffsetRef.current = offset;
+        console.log(`[Clock Sync Appwrite] Offset synchronized: ${offset}ms`);
+        return;
+      }
+    } catch (e) {
+      // Ignore and continue to next fallback
+    }
+
+    // 3. Try WorldTimeAPI (Global public clock API)
+    try {
+      const startTime = Date.now();
+      const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        const endTime = Date.now();
+        if (data && data.unixtime) {
+          const serverTime = data.unixtime * 1000;
+          const latency = (endTime - startTime) / 2;
+          const adjustedServerTime = serverTime + latency;
+          const offset = adjustedServerTime - Date.now();
+          serverTimeOffsetRef.current = offset;
+          console.log(`[Clock Sync WorldTimeAPI] Offset synchronized: ${offset}ms`);
+          return;
+        }
+      }
+    } catch (e) {
+      // Ignore and continue to next fallback
+    }
+
+    // 4. Try local /index.html HEAD request
+    try {
+      const startTime = Date.now();
+      const response = await fetch('/index.html', { method: 'HEAD', cache: 'no-store' });
+      const endTime = Date.now();
+      const serverTimeString = response.headers.get('date');
+      if (serverTimeString) {
+        const serverTime = new Date(serverTimeString).getTime();
+        const latency = (endTime - startTime) / 2;
+        const adjustedServerTime = serverTime + latency;
+        const offset = adjustedServerTime - Date.now();
+        serverTimeOffsetRef.current = offset;
+        console.log(`[Clock Sync Fallback index] Offset synchronized: ${offset}ms`);
+        return;
+      }
+    } catch (e) {
+      // Ignore and fallback gracefully
+    }
+
+    // 5. Hard fallback: set offset to 0 and log a soft notice
+    console.log("[Clock Sync Notice] Using local machine time (offset 0ms)");
+    serverTimeOffsetRef.current = 0;
   };
 
   useEffect(() => {
@@ -534,8 +585,22 @@ export default function App() {
 
 
   // --- Auth & Profile ---
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => {
+    try {
+      const cached = localStorage.getItem('appwrite_session_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [userProfile, setUserProfile] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('appwrite_session_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [personalDeposits, setPersonalDeposits] = useState<DepositRequest[]>([]);
   const [personalWithdrawals, setPersonalWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -637,7 +702,16 @@ export default function App() {
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [withdrawalMethod, setWithdrawalMethod] = useState<'upi' | 'bank'>('upi');
   const [transactionAmount, setTransactionAmount] = useState('');
-  const [balance, setBalance] = useState(0); 
+  const [balance, setBalance] = useState<number>(() => {
+    try {
+      const cached = localStorage.getItem('appwrite_session_user');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.balance !== undefined ? parsed.balance : 0;
+      }
+    } catch {}
+    return 0;
+  }); 
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [notifiedOffline, setNotifiedOffline] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -1481,6 +1555,13 @@ export default function App() {
           setUserProfile(user);
           setBalance(user.balance);
           
+          // Save the user session to localStorage for immediate persistence & fast load on next refresh
+          try {
+            localStorage.setItem('appwrite_session_user', JSON.stringify(user));
+          } catch (e) {
+            console.warn('[Appwrite Auth] Failed to save session to localStorage:', e);
+          }
+          
           // Session Verification & State Update: Completely hide/unmount login modal when user data is loaded
           setIsAuthModalOpen(false); 
           
@@ -1508,6 +1589,11 @@ export default function App() {
           });
         } else {
           console.log("[Appwrite Auth] No active session found. Prompting login.");
+          // Clear any stale cache
+          try {
+            localStorage.removeItem('appwrite_session_user');
+          } catch (e) {}
+
           // Only prompt login if we don't have a valid user
           setCurrentUser(prev => {
             if (prev) {
@@ -2922,6 +3008,9 @@ export default function App() {
         setCurrentUser(user as any);
         setUserProfile(user);
         setBalance(user.balance);
+        try {
+          localStorage.setItem('appwrite_session_user', JSON.stringify(user));
+        } catch (e) {}
       }
 
       setIsAuthModalOpen(false);
@@ -3426,7 +3515,15 @@ export default function App() {
                       <button
                         onClick={async () => {
                           setIsMenuOpen(false);
-                          await logout();
+                          setCurrentUser(null);
+                          setUserProfile(null);
+                          setBalance(0);
+                          try {
+                            localStorage.removeItem('appwrite_session_user');
+                            await logout();
+                          } catch (e) {
+                            console.warn("Logout failed, continuing with local cleanup:", e);
+                          }
                           addNotification("Logged out successfully", 'info');
                         }}
                         className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all font-black text-[10px] tracking-widest uppercase"
@@ -6712,7 +6809,9 @@ $$;`}
                         setIsProfileOpen(false);
                         setUserProfile(null);
                         setCurrentUser(null);
+                        setBalance(0);
                         localStorage.removeItem('sorat_auth_session');
+                        localStorage.removeItem('appwrite_session_user');
                         
                         try {
                           await logout();
@@ -6729,7 +6828,9 @@ $$;`}
                         setIsProfileOpen(false);
                         setUserProfile(null);
                         setCurrentUser(null);
+                        setBalance(0);
                         localStorage.removeItem('sorat_auth_session');
+                        localStorage.removeItem('appwrite_session_user');
                         window.location.reload();
                       }
                     }}

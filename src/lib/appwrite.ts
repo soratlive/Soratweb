@@ -1,12 +1,12 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
-const ENDPOINT = 'https://api.sorat.in/v1';
-const PROJECT_ID = '6a4e644b001268fb3a25';
+const ENDPOINT = (import.meta as any).env?.VITE_APPWRITE_ENDPOINT || 'https://api.sorat.in/v1';
+const PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '6a4e644b001268fb3a25';
 
 // Export App URL variables for the application
-export const APP_URL = 'https://play.sorat.in';
-export const VITE_APP_URL = 'https://play.sorat.in';
+export const APP_URL = (import.meta as any).env?.VITE_APP_URL || 'https://play.sorat.in';
+export const VITE_APP_URL = (import.meta as any).env?.VITE_APP_URL || 'https://play.sorat.in';
 
 // Database, Collection, and Storage configurations
 export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || 'main';
@@ -76,18 +76,25 @@ export const appwriteService = {
    * Retrieves the current logged-in user profile, and ensures they have a document in the users database.
    */
   getCurrentUser: async (): Promise<any> => {
+    let user: any = null;
     try {
-      const user = await account.get();
-      if (!user) return null;
+      user = await account.get();
+    } catch (error) {
+      console.log('[Appwrite Auth] No active session found (account.get failed):', error);
+      return null;
+    }
 
-      // Check if user has a corresponding document in D1/Appwrite DB users collection
-      let userDoc: any = null;
-      try {
-        userDoc = await databases.getDocument(DATABASE_ID, USERS_COLLECTION_ID, user.$id);
-      } catch (docErr: any) {
-        // Document does not exist, let's create it!
-        if (docErr.code === 404 || docErr.message?.includes('not found')) {
-          console.log(`[Appwrite DB] Creating new user record for ${user.email}`);
+    if (!user) return null;
+
+    // Check if user has a corresponding document in D1/Appwrite DB users collection
+    let userDoc: any = null;
+    try {
+      userDoc = await databases.getDocument(DATABASE_ID, USERS_COLLECTION_ID, user.$id);
+    } catch (docErr: any) {
+      // Document does not exist, let's create it!
+      if (docErr.code === 404 || docErr.message?.includes('not found')) {
+        console.log(`[Appwrite DB] Creating new user record for ${user.email}`);
+        try {
           userDoc = await databases.createDocument(
             DATABASE_ID,
             USERS_COLLECTION_ID,
@@ -100,22 +107,21 @@ export const appwriteService = {
               balance: 500.00 // Default starting balance
             }
           );
-        } else {
-          throw docErr;
+        } catch (createErr) {
+          console.warn('[Appwrite DB] Failed to create user document:', createErr);
         }
+      } else {
+        console.warn('[Appwrite DB] Failed to fetch user document:', docErr);
       }
-
-      return {
-        uid: user.$id,
-        email: user.email,
-        displayName: user.name,
-        role: userDoc?.role || 'user',
-        balance: userDoc?.balance !== undefined ? userDoc.balance : 500.00
-      };
-    } catch (error) {
-      console.warn('[Appwrite Auth] Get current user failed (user might be logged out):', error);
-      return null;
     }
+
+    return {
+      uid: user.$id,
+      email: user.email,
+      displayName: user.name || user.email?.split('@')[0] || 'Player',
+      role: userDoc?.role || (user.email === 'admin@sorat.live' || user.email === 'nikhilrv8055@gmail.com' ? 'admin' : 'user'),
+      balance: userDoc?.balance !== undefined ? userDoc.balance : 500.00
+    };
   },
 
   /**
