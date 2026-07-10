@@ -5854,20 +5854,6 @@ $$;`}
                       {isAuthLoading ? 'Connecting Securely...' : 'Sign in with Google'}
                     </span>
                   </button>
-
-                  {/* Go to Lobby (Demo Play) Option */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDemoMode(true);
-                      setIsAuthModalOpen(false);
-                      addNotification("Welcome to Sorat Lobby! Demo Mode Active.", "info");
-                    }}
-                    className="w-full relative overflow-hidden group/btn-lobby bg-zinc-900 border border-yellow-500/10 hover:border-yellow-500/30 text-yellow-500 font-extrabold py-3.5 rounded-2xl text-[10px] uppercase tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transform mt-1 shadow-lg"
-                  >
-                    <Trophy size={14} className="text-yellow-500 animate-pulse" />
-                    Go to Lobby (Demo Play) / लॉबी देखें (डेमो खेलें)
-                  </button>
                 </div>
               </div>
             </motion.div>
