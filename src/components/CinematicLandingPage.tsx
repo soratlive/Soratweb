@@ -339,8 +339,8 @@ export default function CinematicLandingPage() {
 
         function triggerApkDownload() {
             const link = document.createElement('a');
-            link.href = '#'; // You can put the exact Appwrite storage download link or path here
-            link.download = 'Sorat_v2.0.apk';
+            link.href = '/app-release.apk';
+            link.download = 'app-release.apk';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -380,8 +380,8 @@ export default function CinematicLandingPage() {
             
             // Actually trigger APK download (we use a generic app package structure or a mock trigger)
             const link = document.createElement('a');
-            link.href = '/sorat.apk'; // placeholder or fallback URL
-            link.download = 'Sorat_v2.0.apk';
+            link.href = '/app-release.apk';
+            link.download = 'app-release.apk';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
