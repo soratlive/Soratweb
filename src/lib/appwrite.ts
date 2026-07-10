@@ -1,12 +1,12 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
-const ENDPOINT = 'https://sgp.cloud.appwrite.io/v1';
+const ENDPOINT = 'https://api.sorat.in/v1';
 const PROJECT_ID = '6a4e644b001268fb3a25';
 
 // Export App URL variables for the application
-export const APP_URL = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
-export const VITE_APP_URL = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
+export const APP_URL = 'https://play.sorat.in';
+export const VITE_APP_URL = 'https://play.sorat.in';
 
 // Database, Collection, and Storage configurations
 export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || 'main';
@@ -45,7 +45,7 @@ export const appwriteService = {
     try {
       console.log('[Appwrite Auth] Starting Google OAuth session...');
       // Exact production redirect URL requested by user
-      const redirectUrl = 'https://commit-4e3c1e062a6e19fd.appwrite.network/';
+      const redirectUrl = 'https://play.sorat.in';
       
       await account.createOAuth2Session(
         OAuthProvider.Google,

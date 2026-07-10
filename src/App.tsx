@@ -143,6 +143,7 @@ import {
 import { cloudflareAPI } from './lib/cloudflare';
 import { appwriteService, DATABASE_ID, USERS_COLLECTION_ID, databases, client as appwriteClient } from './lib/appwrite';
 import { Query } from 'appwrite';
+import CinematicLandingPage from './components/CinematicLandingPage';
 
 
 // --- Components ---
@@ -1768,12 +1769,12 @@ export default function App() {
     }
 
     // Calculate payouts
-    if (userBetOnWinner > 0 && currentUser) {
+    if (userBetOnWinner > 0 && (currentUser || isDemoMode)) {
       const winAmount = userBetOnWinner * adminState.multiplier;
       
       if (isDemoMode) {
         setDemoBalance(prev => prev + winAmount);
-      } else {
+      } else if (currentUser) {
         const newBalance = balance + winAmount; 
         setBalance(newBalance);
         try {
@@ -2025,8 +2026,8 @@ export default function App() {
   const [betAnimations, setBetAnimations] = useState<{ id: string; x: number; y: number; targetX: number; targetY: number; amount: number }[]>([]);
 
   const handleBet = async (slotId: number, event?: React.MouseEvent) => {
-    if (phase !== 'betting' || (phase === 'betting' && timer <= 5) || !currentUser) {
-      if (!currentUser) addNotification("Please login to place bets!", 'info');
+    if (phase !== 'betting' || (phase === 'betting' && timer <= 5) || (!currentUser && !isDemoMode)) {
+      if (!currentUser && !isDemoMode) addNotification("Please login or use Demo Mode to place bets!", 'info');
       else if (phase === 'betting' && timer <= 5) addNotification("Bets are locked for this round!", 'info');
       return;
     }
@@ -2069,7 +2070,7 @@ export default function App() {
     // Optimistic update
     if (isDemoMode) {
       setDemoBalance(prev => prev - betAmount);
-    } else {
+    } else if (currentUser) {
       setBalance(prev => prev - betAmount);
       try {
         await appwriteService.updateUserBalance(currentUser.uid, currentBalance - betAmount);
@@ -2088,8 +2089,8 @@ export default function App() {
     const newBet: Bet = {
       slotId,
       amount: betAmount,
-      userId: currentUser.uid,
-      userEmail: currentUser.email || 'Anonymous'
+      userId: currentUser?.uid || 'demo_guest',
+      userEmail: currentUser?.email || 'Demo Guest'
     };
     
     setTotalPool(prev => prev + betAmount);
@@ -2946,6 +2947,29 @@ export default function App() {
   };
 
   // --- Rendering ---
+
+  // Check if we are visiting from the main landing domain (sorat.in)
+  const isMainDomain = typeof window !== 'undefined' && 
+    (window.location.hostname === 'sorat.in' || 
+     window.location.hostname === 'www.sorat.in' || 
+     new URLSearchParams(window.location.search).get('landing') === 'true');
+
+  if (isMainDomain) {
+    return <CinematicLandingPage />;
+  }
+
+  // Session Verification Splash Screen: Do not flash any partial or incorrect screens during active verification
+  if (isAuthLoading && !currentUser) {
+    return (
+      <div className="min-h-screen w-full bg-[#050505] flex flex-col items-center justify-center text-white font-sans uppercase">
+        <div className="relative w-16 h-16 mb-6 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-2 border-yellow-500/10 animate-pulse" />
+          <div className="w-12 h-12 rounded-full border-t-2 border-yellow-500 animate-spin" />
+        </div>
+        <span className="text-[10px] font-black text-yellow-500 tracking-[0.3em] animate-pulse">SORAT SECURING SESSION...</span>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-[100dvh] w-full ${isDemoMode ? 'bg-[#1a140a]' : 'bg-[#0F172A]'} text-white font-sans transition-colors duration-1000 overflow-hidden selection:bg-yellow-500/30`}>
@@ -5829,6 +5853,20 @@ $$;`}
                     <span className="font-extrabold tracking-[0.15em]">
                       {isAuthLoading ? 'Connecting Securely...' : 'Sign in with Google'}
                     </span>
+                  </button>
+
+                  {/* Go to Lobby (Demo Play) Option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDemoMode(true);
+                      setIsAuthModalOpen(false);
+                      addNotification("Welcome to Sorat Lobby! Demo Mode Active.", "info");
+                    }}
+                    className="w-full relative overflow-hidden group/btn-lobby bg-zinc-900 border border-yellow-500/10 hover:border-yellow-500/30 text-yellow-500 font-extrabold py-3.5 rounded-2xl text-[10px] uppercase tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transform mt-1 shadow-lg"
+                  >
+                    <Trophy size={14} className="text-yellow-500 animate-pulse" />
+                    Go to Lobby (Demo Play) / लॉबी देखें (डेमो खेलें)
                   </button>
                 </div>
               </div>
