@@ -228,7 +228,8 @@ const TimerDisplay = React.memo(({
   myBets = {},
   winner = null,
   multiplier = 9,
-  customNames = {}
+  customNames = {},
+  isLandscape = true
 }: { 
   timer: number, 
   phase: GamePhase, 
@@ -236,7 +237,8 @@ const TimerDisplay = React.memo(({
   myBets?: { [slotId: number]: number },
   winner?: number | null,
   multiplier?: number,
-  customNames?: { [slotId: number]: string }
+  customNames?: { [slotId: number]: string },
+  isLandscape?: boolean
 }) => {
   const isBetsLocked = phase === 'betting' && timer <= 5;
   const isLowTime = phase === 'betting' && timer <= 10 && timer > 5;
@@ -344,6 +346,82 @@ const TimerDisplay = React.memo(({
       subtitleText = 'No active bets placed';
       statusIcon = '🏆';
     }
+  }
+
+  if (!isLandscape) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0.9, y: -5 }}
+        animate={{ 
+          scale: isLowTime ? [1, 1.01, 1] : 1,
+          opacity: 1,
+          y: 0
+        }}
+        transition={{ 
+          scale: isLowTime ? { repeat: Infinity, duration: 1, ease: "easeInOut" } : { duration: 0.3 }
+        }}
+        className={`px-3 py-1.5 rounded-xl border transition-all duration-350 relative overflow-hidden ${cardBorder} ${bgGradient} flex items-center justify-between gap-3 w-full`}
+      >
+        {/* Background Neon Glow Drops */}
+        <div 
+          className="absolute -top-6 -left-6 w-16 h-16 rounded-full blur-2xl pointer-events-none transition-all duration-500" 
+          style={{ backgroundColor: glowColor }}
+        />
+        <div 
+          className="absolute -bottom-6 -right-6 w-16 h-16 rounded-full blur-2xl pointer-events-none transition-all duration-500" 
+          style={{ backgroundColor: glowColor }}
+        />
+
+        {/* Hazard Flashing Strobe Line for Low/Locked state */}
+        {(isLowTime || isBetsLocked) && (
+          <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
+            <motion.div 
+              className="h-full bg-gradient-to-r from-transparent via-amber-500 to-transparent"
+              animate={{ x: ['-100%', '100%'] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+            />
+          </div>
+        )}
+
+        {/* Left: Square Timer Box */}
+        <div className="flex items-center gap-2.5 relative z-10 min-w-0 flex-1">
+          <div className={`w-11 h-11 shrink-0 rounded-xl bg-slate-950/90 border flex flex-col items-center justify-center relative overflow-hidden transition-all duration-300 ${
+            isBetsLocked ? 'border-rose-500/50 shadow-[0_0_12px_rgba(239,68,68,0.3)]' :
+            isLowTime ? 'border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.3)]' :
+            phase === 'locked' ? 'border-yellow-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]' :
+            phase === 'result' ? 'border-green-500/40 shadow-[0_0_10px_rgba(34,197,94,0.2)]' :
+            'border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+          }`}>
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 pointer-events-none" />
+            <span className={`text-[17px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[0.5px] leading-none`}>
+              {timer}
+              <span className="text-[9px] font-bold opacity-80">s</span>
+            </span>
+            <span className="text-[6.5px] text-slate-500 font-extrabold tracking-wider uppercase mt-0.5 leading-none">
+              TIME
+            </span>
+          </div>
+
+          {/* Text & Phase Info */}
+          <div className="flex flex-col text-left justify-center min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-white truncate flex items-center gap-1">
+              <span className="animate-pulse shrink-0">{statusIcon}</span>
+              <span className="truncate">{titleText}</span>
+            </span>
+            <span className="text-[7.5px] text-slate-400 font-black uppercase tracking-wide truncate mt-0.5">
+              {subtitleText}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Small Badge */}
+        <div className="relative z-10 shrink-0">
+          <span className={`text-[7px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md border shadow-sm ${statusBadge}`}>
+            {phase === 'betting' && !isBetsLocked ? 'ACTIVE' : phase.toUpperCase()}
+          </span>
+        </div>
+      </motion.div>
+    );
   }
 
   return (
@@ -514,7 +592,7 @@ const SlotCard = React.memo(({
       onClick={(e) => onBet(slot.id, e)}
       disabled={phase !== 'betting'}
       className={`
-        relative group flex flex-col items-center justify-center p-3 sm:p-4 landscape:p-1.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square overflow-hidden
+        relative group flex flex-col items-center justify-center p-3 sm:p-4 portrait:p-1.5 landscape:p-1.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square portrait:aspect-[1.35/1] overflow-hidden
         ${phase === 'betting' ? 'hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)]' : 'opacity-80'}
         ${myBet > 0 ? 'border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'border-white/5 bg-slate-900/40'}
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
@@ -533,13 +611,13 @@ const SlotCard = React.memo(({
           </div>
         </>
       ) : (
-        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-1 h-7 w-7 sm:h-9 sm:w-9 landscape:h-[22px] landscape:w-[22px] relative z-10 transition-transform duration-350 group-hover:scale-110`} />
+        <Icon className={`${slot.color} mb-1.5 sm:mb-2.5 landscape:mb-1 portrait:mb-1 h-7 w-7 sm:h-9 sm:w-9 portrait:h-6 portrait:w-6 landscape:h-[22px] landscape:w-[22px] relative z-10 transition-transform duration-350 group-hover:scale-110`} />
       )}
-      <span className="text-[10px] sm:text-xs landscape:text-[8px] font-black uppercase tracking-tight text-white relative z-10 mt-auto text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
+      <span className="text-[10px] sm:text-xs landscape:text-[8px] portrait:text-[8.5px] font-black uppercase tracking-tight text-white relative z-10 mt-auto portrait:mt-1 text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
         {customName || slot.name}
       </span>
-      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 landscape:top-1 landscape:right-1 opacity-90 z-20">
-         <span className="text-[7.5px] sm:text-[8px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
+      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 portrait:top-1 portrait:right-1 landscape:top-1 landscape:right-1 opacity-90 z-20">
+         <span className="text-[7.5px] sm:text-[8px] portrait:text-[7px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
             ₹{myBet}
          </span>
       </div>
@@ -3467,7 +3545,7 @@ export default function App() {
         </header>
 
         {/* Phase Sub-Header */}
-        <div className="px-4 py-2 bg-slate-900 border-b border-white/5 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-900 border-b border-white/5 flex items-center justify-between gap-4 shrink-0">
           <div className="flex-1">
             <TimerDisplay 
               timer={timer} 
@@ -3477,6 +3555,7 @@ export default function App() {
               winner={winner}
               multiplier={adminState?.multiplier || 9}
               customNames={customNames}
+              isLandscape={isLandscape}
             />
           </div>
           
@@ -3491,7 +3570,7 @@ export default function App() {
         </div>
 
         {/* Quick Actions & Stats */}
-        <div className="px-4 py-2 space-y-2 shrink-0">
+        <div className="px-3 py-1 sm:px-4 sm:py-2 space-y-1 sm:space-y-2 shrink-0">
           <StatBar totalPool={totalPool} onRefresh={fetchCurrentPool} isQuotaExceeded={isQuotaExceeded} />
 
           <AnimatePresence>
@@ -3527,7 +3606,7 @@ export default function App() {
         </div>
 
         {/* Bet Amount Selector */}
-        <div className="px-3 py-1.5 bg-slate-900/40 border-y border-white/5 shrink-0 flex flex-row landscape:flex-col items-center landscape:items-stretch justify-between gap-2">
+        <div className="px-3 py-1 sm:py-1.5 bg-slate-900/40 border-y border-white/5 shrink-0 flex flex-row landscape:flex-col items-center landscape:items-stretch justify-between gap-2">
           <div className="flex items-center justify-between landscape:w-full">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Stakes:</span>
             <div className="flex items-center gap-0.5 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-white/5 max-w-[65px] landscape:max-w-[80px]">
@@ -3556,8 +3635,8 @@ export default function App() {
         </div>
 
         {/* Main Grid */}
-        <main className="flex-1 px-3 py-3 overflow-y-auto custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
-          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 sm:gap-3 landscape:gap-1.5 mb-4">
+        <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
+          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
