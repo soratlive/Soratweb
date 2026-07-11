@@ -639,11 +639,13 @@ const SlotCard = React.memo(({
       <span className="text-[10px] sm:text-xs landscape:text-[8px] portrait:text-[8.5px] font-black uppercase tracking-tight text-white relative z-10 mt-auto portrait:mt-1 text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] max-w-full truncate">
         {customName || slot.name}
       </span>
-      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 portrait:top-1 portrait:right-1 landscape:top-1 landscape:right-1 opacity-90 z-20">
-         <span className="text-[7.5px] sm:text-[8px] portrait:text-[7px] landscape:text-[6px] font-black tracking-tighter bg-black/60 backdrop-blur-[1px] border border-white/5 px-1.5 py-0.5 rounded text-yellow-400 drop-shadow-md">
-            ₹{myBet}
-         </span>
-      </div>
+      {myBet > 0 && (
+        <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 portrait:top-1 portrait:right-1 landscape:top-1 landscape:right-1 opacity-90 z-20 animate-fade-in">
+           <span className="text-[7.5px] sm:text-[8px] portrait:text-[7px] landscape:text-[6px] font-black tracking-tighter bg-yellow-500 text-slate-950 px-1.5 py-0.5 rounded shadow-lg">
+              ₹{myBet}
+           </span>
+        </div>
+      )}
     </motion.button>
   );
 });
@@ -1878,6 +1880,8 @@ export default function App() {
           setCurrentUser(user as any);
           setUserProfile(user);
           setBalance(user.balance);
+          setIsDemoMode(false);
+          setDbConnectionStatus('Connected');
           
           // Save the user session to localStorage for immediate persistence & fast load on next refresh
           try {
@@ -3388,6 +3392,8 @@ export default function App() {
         setCurrentUser(user as any);
         setUserProfile(user);
         setBalance(user.balance);
+        setIsDemoMode(false);
+        setDbConnectionStatus('Connected');
         try {
           localStorage.setItem('appwrite_session_user', JSON.stringify(user));
         } catch (e) {}
@@ -3537,18 +3543,27 @@ export default function App() {
 
             {/* Bottom Row: Balance, Real/Demo switches on Mobile, or stacked row 2 on Landscape */}
             <div className="flex items-center gap-2 landscape:w-full landscape:justify-between">
-              <div className="flex bg-slate-950 p-0.5 rounded-lg border border-white/5 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="flex bg-slate-950 p-0.5 rounded-lg border border-white/5">
+                  <button 
+                    onClick={() => setIsDemoMode(false)}
+                    className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${!isDemoMode ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Real
+                  </button>
+                  <button 
+                    onClick={() => setIsDemoMode(true)}
+                    className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${isDemoMode ? 'bg-yellow-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Demo
+                  </button>
+                </div>
                 <button 
-                  onClick={() => setIsDemoMode(false)}
-                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${!isDemoMode ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={toggleMute}
+                  className="p-1 rounded-lg bg-slate-950 border border-white/5 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center shrink-0 cursor-pointer h-[22px] w-[22px]"
+                  title={isMuted ? "Unmute Sound" : "Mute Sound"}
                 >
-                  Real
-                </button>
-                <button 
-                  onClick={() => setIsDemoMode(true)}
-                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${isDemoMode ? 'bg-yellow-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  Demo
+                  {isMuted ? <VolumeX size={11} className="text-red-500" /> : <Volume2 size={11} className="text-emerald-400" />}
                 </button>
               </div>
 
@@ -3579,7 +3594,7 @@ export default function App() {
         </header>
 
         {/* Phase Sub-Header */}
-        <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-900 border-b border-white/5 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-900 border-b border-white/5 flex items-center justify-between gap-4 shrink-0 landscape:hidden">
           <div className="flex-1">
             <TimerDisplay 
               timer={timer} 
@@ -3669,8 +3684,25 @@ export default function App() {
         </div>
 
         {/* Main Grid */}
-        <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full">
-          <div className="grid grid-cols-3 landscape:grid-cols-4 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
+        <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full flex flex-col gap-2">
+          
+          {/* Landscape Timer: Separate Timer on Top, separated from slot box */}
+          {isLandscape && (
+            <div className="bg-slate-900/90 border border-white/5 rounded-2xl p-3 shrink-0 shadow-2xl">
+              <TimerDisplay 
+                timer={timer} 
+                phase={phase} 
+                maxDuration={Math.max(5, (adminState.landscapeTimerDuration || 30) - 10)} 
+                myBets={myBets}
+                winner={winner}
+                multiplier={adminState?.multiplier || 9}
+                customNames={customNames}
+                isLandscape={true}
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 landscape:grid-cols-6 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
