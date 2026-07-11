@@ -469,7 +469,7 @@ const TimerDisplay = React.memo(({
       transition={{ 
         scale: isLowTime ? { repeat: Infinity, duration: 1, ease: "easeInOut" } : { duration: 0.3 }
       }}
-      className={`p-2.5 px-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-row items-center gap-3 w-full`}
+      className={`p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-col items-center justify-center gap-3 w-full text-center`}
     >
       {/* Background Neon Glow Drops */}
       <div 
@@ -492,7 +492,7 @@ const TimerDisplay = React.memo(({
         </div>
       )}
 
-      {/* LEFT: Stunning Futuristic Circular Progress Gauge - Medium Sized */}
+      {/* TOP: Stunning Futuristic Circular Progress Gauge - Medium Sized */}
       <div className="relative shrink-0 flex items-center justify-center w-14 h-14">
         {/* Animated outer tech circle */}
         <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_20s_linear_infinite]" />
@@ -552,30 +552,26 @@ const TimerDisplay = React.memo(({
         <div className="absolute bottom-1 right-1 w-1 h-1 border-b border-r border-white/20" />
       </div>
 
-      {/* RIGHT: Sophisticated Cyber-Notch Text & Badges Panel */}
-      <div className="flex-1 flex flex-col justify-center text-left gap-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          {/* Header Tag / State title */}
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white flex items-center gap-1.5 min-w-0 truncate`}>
-              <span className="animate-pulse shrink-0">{statusIcon}</span>
-              <span className="truncate">{titleText}</span>
-            </span>
-          </div>
-
+      {/* BOTTOM: Sophisticated Cyber-Notch Text & Badges Panel */}
+      <div className="flex flex-col justify-center items-center gap-1.5 min-w-0 w-full text-center">
+        <div className="flex flex-col items-center gap-1 w-full">
           {/* Quick Dynamic pill badge */}
-          <div className="flex items-center shrink-0">
-            <span className={`text-[7.5px] font-black tracking-wider uppercase px-2 py-0.5 rounded-lg border shadow-sm ${statusBadge}`}>
-              {phase === 'betting' && !isBetsLocked ? 'ACTIVE ROUND' : phase.toUpperCase()}
-            </span>
-          </div>
+          <span className={`text-[7.5px] font-black tracking-wider uppercase px-2 py-0.5 rounded-lg border shadow-sm ${statusBadge}`}>
+            {phase === 'betting' && !isBetsLocked ? 'ACTIVE ROUND' : phase.toUpperCase()}
+          </span>
+
+          {/* Header Tag / State title */}
+          <span className={`text-[11px] font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 w-full`}>
+            <span className="animate-pulse shrink-0">{statusIcon}</span>
+            <span className="truncate text-center">{titleText}</span>
+          </span>
         </div>
 
         {/* Decorative Divider notch */}
-        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/5 to-transparent sm:via-white/10" />
+        <div className="h-[1px] w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent my-0.5" />
 
         {/* Description line */}
-        <div className="text-[8.5px] text-slate-400 font-semibold tracking-wide truncate">
+        <div className="text-[8.5px] text-slate-400 font-bold tracking-wide text-center uppercase leading-relaxed max-w-full break-words">
           {subtitleText}
         </div>
       </div>
@@ -3593,6 +3589,22 @@ export default function App() {
           </div>
         </header>
 
+        {/* Landscape Timer Display - inside left side panel */}
+        {isLandscape && (
+          <div className="px-3 py-2 shrink-0 border-b border-white/5 bg-slate-900/50">
+            <TimerDisplay 
+              timer={timer} 
+              phase={phase} 
+              maxDuration={Math.max(5, (adminState.landscapeTimerDuration || 30) - 10)} 
+              myBets={myBets}
+              winner={winner}
+              multiplier={adminState?.multiplier || 9}
+              customNames={customNames}
+              isLandscape={true}
+            />
+          </div>
+        )}
+
         {/* Phase Sub-Header */}
         <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-900 border-b border-white/5 flex items-center justify-between gap-4 shrink-0 landscape:hidden">
           <div className="flex-1">
@@ -3686,22 +3698,6 @@ export default function App() {
         {/* Main Grid */}
         <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full flex flex-col gap-2">
           
-          {/* Landscape Timer: Separate Timer on Top, separated from slot box */}
-          {isLandscape && (
-            <div className="bg-slate-900/90 border border-white/5 rounded-2xl p-3 shrink-0 shadow-2xl">
-              <TimerDisplay 
-                timer={timer} 
-                phase={phase} 
-                maxDuration={Math.max(5, (adminState.landscapeTimerDuration || 30) - 10)} 
-                myBets={myBets}
-                winner={winner}
-                multiplier={adminState?.multiplier || 9}
-                customNames={customNames}
-                isLandscape={true}
-              />
-            </div>
-          )}
-
           <div className="grid grid-cols-4 landscape:grid-cols-6 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
             {GAME_SLOTS.map((slot) => (
               <SlotCard

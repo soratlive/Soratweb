@@ -11,7 +11,6 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
   const [showDownloadPopup, setShowDownloadPopup] = useState(false);
   const [downloadStep, setDownloadStep] = useState<'idle' | 'generating' | 'downloading' | 'complete'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [showExporter, setShowExporter] = useState(false);
   const [localNotifications, setLocalNotifications] = useState<string[]>([]);
 
   const logoUrl = adminState?.appLogoUrl || '';
@@ -619,128 +618,9 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
             <a href="https://play.sorat.in" className="text-slate-400 hover:text-yellow-500 transition-colors">Play Portal</a>
             <span className="text-slate-800">|</span>
             <span className="text-yellow-500">Responsible Gaming</span>
-            <span className="text-slate-800">|</span>
-            <button 
-              onClick={() => setShowExporter(true)}
-              className="px-3 py-1 bg-yellow-500/10 hover:bg-yellow-500 hover:text-black border border-yellow-500/20 rounded-full text-yellow-400 font-bold transition-all cursor-pointer flex items-center gap-1"
-            >
-              <Download size={10} />
-              EXPORT HTML CODE FOR SORAT.IN
-            </button>
           </div>
         </div>
       </footer>
-
-      {/* Exporter / Deployment Modal */}
-      <AnimatePresence>
-        {showExporter && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowExporter(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-zinc-950 border border-yellow-500/20 rounded-[32px] w-full max-w-2xl p-8 relative z-10 overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
-              {/* Gold Top Light Bar */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500" />
-
-              <button
-                onClick={() => setShowExporter(false)}
-                className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 flex items-center justify-center text-yellow-500">
-                    <Globe size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tight">Appwrite Sites / Git Deployment</h3>
-                    <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">Connect and host sorat.in in 3 simple steps</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
-                    <span className="text-xs font-black text-white uppercase block">Deployment Instructions:</span>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="p-3.5 rounded-xl bg-black border border-white/5 space-y-1.5">
-                        <span className="text-yellow-500 text-xs font-black">1. DOWNLOAD CODE</span>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-relaxed">
-                          Click the download button below to get the fully complete, single-file optimized <span className="text-white">index.html</span> file.
-                        </p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-black border border-white/5 space-y-1.5">
-                        <span className="text-yellow-500 text-xs font-black">2. PUSH TO REPO</span>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-relaxed">
-                          Create a new Git repository, add this <span className="text-white">index.html</span> file inside the root folder, and push the repository to GitHub.
-                        </p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-black border border-white/5 space-y-1.5">
-                        <span className="text-yellow-500 text-xs font-black">3. CONNECT DOMAIN</span>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-relaxed">
-                          Connect this GitHub repo to Appwrite Sites or static hosting and point it directly to your main domain <span className="text-white">sorat.in</span>!
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-black text-slate-400 uppercase block">Landing Page Features Pre-bundled:</span>
-                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] text-slate-400 uppercase tracking-wide font-bold">
-                      <li className="flex items-center gap-1.5 text-emerald-400">
-                        <CheckCircle2 size={12} /> Yellow & Black Cinematic Design
-                      </li>
-                      <li className="flex items-center gap-1.5 text-emerald-400">
-                        <CheckCircle2 size={12} /> Play on Web (Points to play.sorat.in)
-                      </li>
-                      <li className="flex items-center gap-1.5 text-emerald-400">
-                        <CheckCircle2 size={12} /> Download APK Simulator and Fallback
-                      </li>
-                      <li className="flex items-center gap-1.5 text-emerald-400">
-                        <CheckCircle2 size={12} /> Mobile Adaptive & Touch Targets
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                    <button
-                      onClick={downloadStandaloneHtml}
-                      className="flex-1 py-4 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Download size={16} />
-                      Download index.html File
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(getStandaloneHtmlContent());
-                        addNotification?.("HTML Source Code copied to clipboard!", "success");
-                      }}
-                      className="py-4 px-6 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer"
-                    >
-                      Copy Source Code
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* App Download Popup/Modal */}
       <AnimatePresence>
