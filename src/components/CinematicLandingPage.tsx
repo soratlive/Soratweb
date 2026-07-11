@@ -15,7 +15,7 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
   const [localNotifications, setLocalNotifications] = useState<string[]>([]);
 
   const logoUrl = adminState?.appLogoUrl || '';
-  const apkUrl = adminState?.apkUrl || 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/SORAT%20(2).apk?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9TT1JBVCAoMikuYXBrIiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc4Mzc1ODMwOSwiZXhwIjozMTcxNDM3NTgzMDl9.mIqt1dwzG8lDF-3w0mprAJ2ajooRSkw4hg4aNGNdMTw';
+  const apkUrl = adminState?.apkUrl || 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/SORATPLAY.apk?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9TT1JBVFBMQVkuYXBrIiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc4Mzc2MjQ1OCwiZXhwIjozMTcxNDM3NjI0NTh9.kcCC4DLjic079wkORYiMKmPcWbcQg1B-g1_ZIutl_n0';
 
   const addNotification = (msg: string, type?: string) => {
     setLocalNotifications(prev => [...prev, msg]);
@@ -26,7 +26,7 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
 
   const getStandaloneHtmlContent = () => {
     const logoUrl = adminState?.appLogoUrl || '';
-    const apkUrl = adminState?.apkUrl || 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/SORAT%20(2).apk?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9TT1JBVCAoMikuYXBrIiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc4Mzc1ODMwOSwiZXhwIjozMTcxNDM3NTgzMDl9.mIqt1dwzG8lDF-3w0mprAJ2ajooRSkw4hg4aNGNdMTw';
+    const apkUrl = adminState?.apkUrl || 'https://zygfwbbrokqaxdearmpf.supabase.co/storage/v1/object/sign/Sorat/SORATPLAY.apk?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iNjFhZWUyZC1lMGU3LTRlMTctOTYwYi04MDk3ZDgxNjgyNzIiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJTb3JhdC9TT1JBVFBMQVkuYXBrIiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc4Mzc2MjQ1OCwiZXhwIjozMTcxNDM3NjI0NTh9.kcCC4DLjic079wkORYiMKmPcWbcQg1B-g1_ZIutl_n0';
 
     return `<!DOCTYPE html>
 <html lang="en">

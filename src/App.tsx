@@ -26,6 +26,9 @@ import {
   Volume2,
   VolumeX,
   LogOut,
+  LogIn,
+  Lock,
+  Phone,
   User,
   UserPlus,
   UserMinus,
@@ -810,6 +813,20 @@ export default function App() {
     return 0;
   }); 
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
   const [notifiedOffline, setNotifiedOffline] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [tutorialTab, setTutorialTab] = useState<'how' | 'bet' | 'wallet' | 'faq'>('how');
@@ -1221,10 +1238,13 @@ export default function App() {
       isAutoWinLowest: true,
       multiplier: MULTIPLIER,
       timerDuration: CYCLE_DURATION,
+      landscapeTimerDuration: 30,
       upiId: savedUpi || 'nikhilrv8055@okhdfcbank',
       upiPayeeName: savedPayeeName || 'RECHARGE PORTAL',
       paymentLink: savedPaymentLink || '',
       appLogoUrl: savedLogo || DEFAULT_LOGO_URL,
+      enableGoogleLogin: true,
+      enableMobileLogin: true,
       updateInfo: {
         version: '1.0.0',
         message: 'A new version of the app is available! Please refresh to get the latest features.',
@@ -1333,6 +1353,9 @@ export default function App() {
           ...data,
           appLogoUrl: data.appLogoUrl || prev.appLogoUrl || DEFAULT_LOGO_URL,
           isAutoWinLowest: data.isAutoWinLowest ?? true, // Default to true if missing
+          enableGoogleLogin: data.enableGoogleLogin ?? true,
+          enableMobileLogin: data.enableMobileLogin ?? true,
+          landscapeTimerDuration: data.landscapeTimerDuration ?? 30,
           forceWinner: prev.forceWinner // Keep local forceWinner state
         }));
         setLastFetch(prev => ({ ...prev, settings: now }));
@@ -1968,23 +1991,33 @@ export default function App() {
         // Fallback: Mathematical Synchronized Game Loop
         const now = getSyncedNow();
         const nowSec = Math.floor(now / 1000);
-        sec = nowSec % 60;
-        currentRoundId = Math.floor(nowSec / 60).toString();
+        
+        // Use separate timer cycle for landscape screen, keep vertical screen exactly as before (60s)
+        const cycle = isLandscape 
+          ? (adminState.landscapeTimerDuration || 30) 
+          : 60;
+
+        sec = nowSec % cycle;
+        currentRoundId = Math.floor(nowSec / cycle).toString();
 
         // Trigger sync with backend on round rollover
         if (sec === 0) {
           syncTime();
         }
 
+        const lockTime = isLandscape ? 5 : 10; // vertical keeps 10 seconds locked duration as before
+        const resultTime = 5;
+        const bettingTime = cycle - lockTime - resultTime;
+
         // Determine phase and timer based on current second
-        if (sec < 45) {
-          remainingSeconds = 45 - sec;
+        if (sec < bettingTime) {
+          remainingSeconds = bettingTime - sec;
           calculatedPhase = 'betting';
-        } else if (sec >= 45 && sec < 55) {
-          remainingSeconds = 55 - sec;
+        } else if (sec >= bettingTime && sec < (bettingTime + lockTime)) {
+          remainingSeconds = (bettingTime + lockTime) - sec;
           calculatedPhase = 'locked';
         } else {
-          remainingSeconds = 60 - sec;
+          remainingSeconds = cycle - sec;
           calculatedPhase = 'result';
         }
       }
@@ -3439,7 +3472,7 @@ export default function App() {
             <TimerDisplay 
               timer={timer} 
               phase={phase} 
-              maxDuration={adminState?.timerDuration || CYCLE_DURATION} 
+              maxDuration={isLandscape ? Math.max(5, (adminState.landscapeTimerDuration || 30) - 10) : 45} 
               myBets={myBets}
               winner={winner}
               multiplier={adminState?.multiplier || 9}
@@ -4123,7 +4156,7 @@ export default function App() {
                                 </div>
                               </div>
                               
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Payout Multiplier</label>
                                   <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 flex items-center gap-3">
@@ -4137,13 +4170,25 @@ export default function App() {
                                   </div>
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Round Time (s)</label>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Vertical Screen Time (s)</label>
                                   <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 flex items-center gap-3">
                                     <Clock size={16} className="text-orange-500" />
                                     <input 
-                                      type="number" min="10" max="120" step="10"
+                                      type="number" min="10" max="120" step="5"
                                       value={adminState.timerDuration}
                                       onChange={(e) => setAdminState(prev => ({ ...prev, timerDuration: parseInt(e.target.value) || 30 }))}
+                                      className="w-full bg-transparent text-sm font-black text-white outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Rotated Screen Time (s)</label>
+                                  <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+                                    <Clock size={16} className="text-yellow-500 animate-pulse" />
+                                    <input 
+                                      type="number" min="10" max="120" step="5"
+                                      value={adminState.landscapeTimerDuration || 30}
+                                      onChange={(e) => setAdminState(prev => ({ ...prev, landscapeTimerDuration: parseInt(e.target.value) || 30 }))}
                                       className="w-full bg-transparent text-sm font-black text-white outline-none"
                                     />
                                   </div>
@@ -4190,6 +4235,57 @@ export default function App() {
                                     onChange={(e) => setAdminState(prev => ({ ...prev, paymentLink: e.target.value }))}
                                     className="flex-1 bg-transparent text-sm font-bold text-white outline-none"
                                   />
+                                </div>
+                              </div>
+
+                              {/* User Login Methods Control */}
+                              <div className="bg-slate-950 p-4 rounded-3xl border border-white/5 space-y-4">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">User Registration & Login Methods</span>
+                                
+                                <div className="space-y-3">
+                                  {/* Google Login Toggle */}
+                                  <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded-2xl border border-white/5">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs font-black text-white">Google Sign-In</span>
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Allow users to log in with their Google Account</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextVal = adminState.enableGoogleLogin === false ? true : false;
+                                        if (!nextVal && adminState.enableMobileLogin === false) {
+                                          addNotification("At least one login method must be enabled!", "info");
+                                          return;
+                                        }
+                                        setAdminState(prev => ({ ...prev, enableGoogleLogin: nextVal }));
+                                      }}
+                                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${adminState.enableGoogleLogin !== false ? 'bg-emerald-500' : 'bg-slate-800'}`}
+                                    >
+                                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${adminState.enableGoogleLogin !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    </button>
+                                  </div>
+
+                                  {/* Mobile Login Toggle */}
+                                  <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded-2xl border border-white/5">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs font-black text-white">Mobile Number & Password</span>
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Allow users to sign up/login with 10-digit mobile number</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextVal = adminState.enableMobileLogin === false ? true : false;
+                                        if (!nextVal && adminState.enableGoogleLogin === false) {
+                                          addNotification("At least one login method must be enabled!", "info");
+                                          return;
+                                        }
+                                        setAdminState(prev => ({ ...prev, enableMobileLogin: nextVal }));
+                                      }}
+                                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${adminState.enableMobileLogin !== false ? 'bg-emerald-500' : 'bg-slate-800'}`}
+                                    >
+                                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${adminState.enableMobileLogin !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
 
@@ -6319,29 +6415,139 @@ $$;`}
                   </div>
                 </div>
 
-                <div className="space-y-5">
-                  {/* High Fidelity Glass Look Google Sign-In Button */}
-                  <button 
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={isAuthLoading}
-                    className="w-full relative overflow-hidden group/btn bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-400/20 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 shadow-[0_12px_24px_-10px_rgba(59,130,246,0.5)] hover:shadow-[0_20px_35px_-10px_rgba(59,130,246,0.6)] flex items-center justify-center gap-3.5 mt-2 cursor-pointer active:scale-95 transform"
-                  >
-                    {/* Glowing highlight trace */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 ease-out" />
-                    
-                    <div className="bg-white/10 p-2 rounded-xl border border-white/10 flex items-center justify-center group-hover/btn:bg-white/15 transition-colors">
-                      <svg className="w-5 h-5 shrink-0 text-white fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" opacity="0.95"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.66-.35-1.36-.35-2.09z" opacity="0.9"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" opacity="0.95"/>
-                      </svg>
+                <div className="space-y-4">
+                  {/* Google Login (Rendered if enableGoogleLogin !== false) */}
+                  {adminState.enableGoogleLogin !== false && (
+                    <button 
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={isAuthLoading}
+                      className="w-full relative overflow-hidden group/btn bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-400/20 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 shadow-[0_12px_24px_-10px_rgba(59,130,246,0.5)] hover:shadow-[0_20px_35px_-10px_rgba(59,130,246,0.6)] flex items-center justify-center gap-3.5 mt-2 cursor-pointer active:scale-95 transform"
+                    >
+                      {/* Glowing highlight trace */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 ease-out" />
+                      
+                      <div className="bg-white/10 p-2 rounded-xl border border-white/10 flex items-center justify-center group-hover/btn:bg-white/15 transition-colors">
+                        <svg className="w-5 h-5 shrink-0 text-white fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" opacity="0.95"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.66-.35-1.36-.35-2.09z" opacity="0.9"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" opacity="0.95"/>
+                        </svg>
+                      </div>
+                      <span className="font-extrabold tracking-[0.15em]">
+                        {isAuthLoading ? 'Connecting Securely...' : 'Sign in with Google'}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* OR separator if both are enabled */}
+                  {adminState.enableGoogleLogin !== false && adminState.enableMobileLogin !== false && (
+                    <div className="flex items-center gap-3 my-2">
+                      <div className="flex-1 h-[1px] bg-white/10" />
+                      <span className="text-[9px] font-black tracking-widest uppercase text-slate-500">OR CONTINUE WITH</span>
+                      <div className="flex-1 h-[1px] bg-white/10" />
                     </div>
-                    <span className="font-extrabold tracking-[0.15em]">
-                      {isAuthLoading ? 'Connecting Securely...' : 'Sign in with Google'}
-                    </span>
-                  </button>
+                  )}
+
+                  {/* Mobile Login Form (Rendered if enableMobileLogin !== false) */}
+                  {adminState.enableMobileLogin !== false && (
+                    <form onSubmit={handleEmailPasswordAuth} className="space-y-4">
+                      {/* Tabs to Switch Login/Register */}
+                      <div className="grid grid-cols-2 bg-slate-950 p-1 rounded-2xl border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setAuthType('login')}
+                          className={`py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authType === 'login' ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          LOGIN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuthType('register')}
+                          className={`py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authType === 'register' ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          SIGN UP
+                        </button>
+                      </div>
+
+                      {/* Display Name Input (Only on Sign Up / Register) */}
+                      {authType === 'register' && (
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Your Name</label>
+                          <div className="flex items-center gap-3 bg-slate-950 p-3.5 rounded-2xl border border-white/5 focus-within:border-amber-500/50 transition-all">
+                            <User size={14} className="text-slate-400" />
+                            <input 
+                              type="text"
+                              required
+                              placeholder="Enter your name"
+                              value={authForm.displayName}
+                              onChange={(e) => setAuthForm(prev => ({ ...prev, displayName: e.target.value }))}
+                              className="flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-600"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mobile Number Input */}
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Mobile Number</label>
+                        <div className="flex items-center gap-3 bg-slate-950 p-3.5 rounded-2xl border border-white/5 focus-within:border-amber-500/50 transition-all">
+                          <Phone size={14} className="text-slate-400" />
+                          <input 
+                            type="tel"
+                            required
+                            pattern="^[0-9]{10}$"
+                            maxLength={10}
+                            placeholder="10-digit mobile number"
+                            value={authForm.mobile}
+                            onChange={(e) => setAuthForm(prev => ({ ...prev, mobile: e.target.value.replace(/[^0-9]/g, '') }))}
+                            className="flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-600"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Password Input */}
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Password</label>
+                        <div className="flex items-center justify-between bg-slate-950 p-3.5 rounded-2xl border border-white/5 focus-within:border-amber-500/50 transition-all">
+                          <div className="flex items-center gap-3 flex-1">
+                            <Lock size={14} className="text-slate-400" />
+                            <input 
+                              type={showPassword ? "text" : "password"}
+                              required
+                              minLength={6}
+                              placeholder="Min 6 characters"
+                              value={authForm.password}
+                              onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                              className="w-full bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-600"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                          >
+                            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Submit Button */}
+                      <button 
+                        type="submit"
+                        disabled={isAuthLoading}
+                        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3.5 rounded-2xl text-[11px] uppercase tracking-widest transition-all duration-150 active:scale-95 flex items-center justify-center gap-2 cursor-pointer mt-2"
+                      >
+                        {isAuthLoading ? (
+                          <div className="w-4 h-4 border-2 border-slate-950 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          authType === 'login' ? <LogIn size={14} /> : <UserPlus size={14} />
+                        )}
+                        <span>{authType === 'login' ? 'Login to Account' : 'Create Profile'}</span>
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             </motion.div>

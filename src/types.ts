@@ -21,8 +21,11 @@ export interface AdminState {
   isAutoWinLowest?: boolean;
   multiplier: number;
   timerDuration: number;
+  landscapeTimerDuration?: number;
   upiId?: string;
   paymentLink?: string;
+  enableGoogleLogin?: boolean;
+  enableMobileLogin?: boolean;
   updateInfo?: {
     version: string;
     message: string;
