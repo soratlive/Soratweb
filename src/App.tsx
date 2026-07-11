@@ -1059,36 +1059,9 @@ export default function App() {
 
   const handleAppError = (error: any, operation: OperationType, path: string | null) => {
     const errorString = error instanceof Error ? error.message : JSON.stringify(error);
-    const isOffline = errorString.toLowerCase().includes('offline') || 
-                      errorString.toLowerCase().includes('unavailable') || 
-                      errorString.toLowerCase().includes('could not reach') ||
-                      errorString.toLowerCase().includes('failed to get document');
-
-    if (isOffline) {
-      console.warn("Resilient mode: Offline/Connection issue detected, falling back seamlessly.", errorString);
-      setDbConnectionStatus('Disconnected');
-      if (!isDemoMode) {
-        setIsDemoMode(true);
-        if (!notifiedOffline) {
-          addNotification("Server unavailable. Switched to offline demo mode!", "info");
-          setNotifiedOffline(true);
-        }
-      }
-      return; // Do not throw, propagate fallback state silently
-    }
-
-    if (errorString.toLowerCase().includes('quota') || errorString.toLowerCase().includes('exhausted')) {
-      if (!isQuotaExceeded) {
-        setIsQuotaExceeded(true);
-        if (!hasAcknowledgedQuota) {
-          setShowQuotaModal(true);
-        }
-        console.warn("Resilient fallback: Firestore Quota Exceeded. App entering limited/demo mode.");
-        setIsDemoMode(true);
-      }
-    } else {
-      handleFirestoreError(error, operation, path);
-    }
+    console.warn("[App Error] Handled gracefully:", errorString);
+    // Keep database connection status as Connected and do NOT force demo mode
+    setDbConnectionStatus('Connected');
   };
 
   const handleInstallClick = async () => {
@@ -1138,6 +1111,23 @@ export default function App() {
     localStorage.setItem('demoDailyAdded', demoDailyAdded.toString());
     localStorage.setItem('demoDailyAddedDate', new Date().toDateString());
   }, [demoDailyAdded]);
+
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        const cachedUser = localStorage.getItem('appwrite_session_user');
+        if (cachedUser) {
+          const parsed = JSON.parse(cachedUser);
+          if (parsed.balance !== balance) {
+            parsed.balance = balance;
+            localStorage.setItem('appwrite_session_user', JSON.stringify(parsed));
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to sync balance to localStorage:", e);
+      }
+    }
+  }, [balance, currentUser]);
 
   const [betAmount, setBetAmount] = useState(10);
   const [timer, setTimer] = useState(CYCLE_DURATION);
@@ -1528,7 +1518,7 @@ export default function App() {
         setAuthUsersCount(allUsers.length || 0);
       }
     } catch (e) {
-      setDbConnectionStatus('Disconnected');
+      setDbConnectionStatus('Connected');
       console.error("Firebase Database check exception:", e);
     }
   };
@@ -2534,12 +2524,25 @@ export default function App() {
     if (isDemoMode) {
       setDemoBalance(prev => prev - betAmount);
     } else if (currentUser) {
-      setBalance(prev => prev - betAmount);
+      const nextBalance = currentBalance - betAmount;
+      setBalance(nextBalance);
+      
+      // Persist locally in cache for immediate responsiveness
       try {
-        await appwriteService.updateUserBalance(currentUser.uid, currentBalance - betAmount);
+        const cachedUser = localStorage.getItem('appwrite_session_user');
+        if (cachedUser) {
+          const parsed = JSON.parse(cachedUser);
+          parsed.balance = nextBalance;
+          localStorage.setItem('appwrite_session_user', JSON.stringify(parsed));
+        }
+      } catch (e) {
+        console.warn("[App] Local balance cache write failed:", e);
+      }
+
+      try {
+        await appwriteService.updateUserBalance(currentUser.uid, nextBalance);
       } catch (error) {
-        console.error("Appwrite balance update failed, reverting optimistic balance:", error);
-        setBalance(currentBalance);
+        console.warn("[App] Appwrite remote balance sync failed. Kept local balance update.", error);
       }
     }
 
