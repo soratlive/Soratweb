@@ -1,0 +1,15 @@
+{
+  "name": "sorat-timer-sync",
+  "version": "1.0.0",
+  "description": "Appwrite background cron function to decrement game countdown and handle round rollover",
+  "main": "index.js",
+  "dependencies": {
+    "node-appwrite": "^14.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Sorat Team",
+  "license": "ISC"
+}

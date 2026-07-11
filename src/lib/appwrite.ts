@@ -13,6 +13,7 @@ export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID |
 export const USERS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_USERS_COLLECTION_ID || 'users';
 export const PROOFS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_PROOFS_COLLECTION_ID || 'payment_proofs';
 export const SCREENSHOTS_BUCKET_ID = (import.meta as any).env?.VITE_APPWRITE_BUCKET_ID || 'screenshots';
+export const TIMER_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_TIMER_COLLECTION_ID || 'timer_sync';
 
 // Initialize the Appwrite Client explicitly with custom domain and project ID
 export const client = new Client()
@@ -303,6 +304,35 @@ export const appwriteService = {
   subscribeToUser: (userId: string, onUpdate: (userDoc: any) => void): (() => void) => {
     const channel = `databases.${DATABASE_ID}.collections.${USERS_COLLECTION_ID}.documents.${userId}`;
     console.log(`[Appwrite Realtime] Subscribing to: ${channel}`);
+    
+    return client.subscribe(channel, (response) => {
+      onUpdate(response.payload);
+    });
+  },
+
+  /**
+   * Fetches the central global timer state from Appwrite
+   */
+  getGlobalTimerState: async (): Promise<{ current_round: string; time_left: number; status: string } | null> => {
+    try {
+      const doc = await databases.getDocument(DATABASE_ID, TIMER_COLLECTION_ID, 'current');
+      return {
+        current_round: doc.current_round || '1001',
+        time_left: doc.time_left !== undefined ? doc.time_left : 45,
+        status: doc.status || 'active'
+      };
+    } catch (error) {
+      console.warn('[Appwrite DB] Failed to fetch global timer state:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Real-time global timer document listener
+   */
+  subscribeToGlobalTimer: (onUpdate: (timerDoc: any) => void): (() => void) => {
+    const channel = `databases.${DATABASE_ID}.collections.${TIMER_COLLECTION_ID}.documents.current`;
+    console.log(`[Appwrite Realtime] Subscribing to global timer: ${channel}`);
     
     return client.subscribe(channel, (response) => {
       onUpdate(response.payload);

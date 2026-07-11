@@ -15,7 +15,7 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
   const [localNotifications, setLocalNotifications] = useState<string[]>([]);
 
   const logoUrl = adminState?.appLogoUrl || '';
-  const apkUrl = adminState?.apkUrl || '/app-release.apk';
+  const apkUrl = adminState?.apkUrl || 'https://sgp.cloud.appwrite.io/v1/storage/buckets/6a4e72f90022e90bc15b/files/6a51f9e60030bccd7bd8/view?project=6a4e644b001268fb3a25&impersonateuserid=&mode=admin';
 
   const addNotification = (msg: string, type?: string) => {
     setLocalNotifications(prev => [...prev, msg]);
@@ -26,7 +26,7 @@ export default function CinematicLandingPage({ adminState }: CinematicLandingPag
 
   const getStandaloneHtmlContent = () => {
     const logoUrl = adminState?.appLogoUrl || '';
-    const apkUrl = adminState?.apkUrl || '/app-release.apk';
+    const apkUrl = adminState?.apkUrl || 'https://sgp.cloud.appwrite.io/v1/storage/buckets/6a4e72f90022e90bc15b/files/6a51f9e60030bccd7bd8/view?project=6a4e644b001268fb3a25&impersonateuserid=&mode=admin';
 
     return `<!DOCTYPE html>
 <html lang="en">

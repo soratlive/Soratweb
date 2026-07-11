@@ -1030,6 +1030,77 @@ export default function App() {
   const [predictedWinner, setPredictedWinner] = useState<number | null>(null);
   const [liveLowestPoolCard, setLiveLowestPoolCard] = useState<number | null>(null);
   const [adminPass, setAdminPass] = useState('');
+
+  // --- Appwrite Global Sync Timer States ---
+  const [appwriteTimer, setAppwriteTimer] = useState<{
+    currentRound: string;
+    timeLeft: number;
+    status: string;
+    lastUpdated: number;
+  } | null>(null);
+  const [isAppwriteTimerActive, setIsAppwriteTimerActive] = useState<boolean>(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean>(true);
+
+  // Appwrite Realtime Connection Status Listener
+  useEffect(() => {
+    const handleConnect = () => setIsRealtimeConnected(true);
+    const handleDisconnect = () => setIsRealtimeConnected(false);
+
+    window.addEventListener('appwrite-realtime-connect', handleConnect);
+    window.addEventListener('appwrite-realtime-disconnect', handleDisconnect);
+
+    return () => {
+      window.removeEventListener('appwrite-realtime-connect', handleConnect);
+      window.removeEventListener('appwrite-realtime-disconnect', handleDisconnect);
+    };
+  }, []);
+
+  // Fetch and Subscribe to Appwrite Universal Sync Timer with Lag/Drift Compensation
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe: (() => void) | null = null;
+
+    const setupAppwriteTimer = async () => {
+      // 1. Initial fetch (Lag/Drift Compensation)
+      console.log("[Appwrite Timer Sync] Fetching initial timer document state...");
+      const initialState = await appwriteService.getGlobalTimerState();
+      if (initialState && isMounted) {
+        console.log("[Appwrite Timer Sync] Initial state loaded successfully:", initialState);
+        setAppwriteTimer({
+          currentRound: initialState.current_round,
+          timeLeft: initialState.time_left,
+          status: initialState.status,
+          lastUpdated: Date.now()
+        });
+        setIsAppwriteTimerActive(true);
+      }
+
+      // 2. Real-time Subscription Setup
+      try {
+        unsubscribe = appwriteService.subscribeToGlobalTimer((payload) => {
+          if (!isMounted) return;
+          console.log("[Appwrite Realtime] Timer Sync update received:", payload);
+          window.dispatchEvent(new CustomEvent('appwrite-realtime-connect'));
+          setAppwriteTimer({
+            currentRound: payload.current_round || '1001',
+            timeLeft: payload.time_left !== undefined ? payload.time_left : 45,
+            status: payload.status || 'active',
+            lastUpdated: Date.now() // Record local update timestamp for lag compensation
+          });
+          setIsAppwriteTimerActive(true);
+        });
+      } catch (err) {
+        console.warn("[Appwrite Realtime] Timer subscription failed, using local fallback loop:", err);
+      }
+    };
+
+    setupAppwriteTimer();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
   const [dealerForm, setDealerForm] = useState<Omit<Dealer, 'id'>>({
     name: '',
     whatsapp: '',
@@ -1711,6 +1782,7 @@ export default function App() {
           // Set up real-time listener for user balance
           unsubscribeRealtime = appwriteService.subscribeToUser(user.uid, (updatedDoc) => {
             console.log("[Appwrite Realtime] User profile updated:", updatedDoc);
+            window.dispatchEvent(new CustomEvent('appwrite-realtime-connect'));
             if (updatedDoc) {
               setUserProfile(updatedDoc);
               if (updatedDoc.balance !== undefined) {
@@ -1869,14 +1941,52 @@ export default function App() {
   // --- Mathematical Synchronized Game Loop ---
   useEffect(() => {
     const runGameLoop = () => {
-      const now = getSyncedNow();
-      const nowSec = Math.floor(now / 1000);
-      const sec = nowSec % 60;
-      const currentRoundId = Math.floor(nowSec / 60).toString();
+      let sec = 0;
+      let currentRoundId = "";
+      let remainingSeconds = 0;
+      let calculatedPhase: 'betting' | 'locked' | 'result' = 'betting';
 
-      // Trigger sync with backend on round rollover
-      if (sec === 0) {
-        syncTime();
+      if (isAppwriteTimerActive && appwriteTimer) {
+        // Appwrite Real-time Synced Timer Mode with Lag/Drift Compensation
+        const elapsedSeconds = Math.floor((Date.now() - appwriteTimer.lastUpdated) / 1000);
+        remainingSeconds = Math.max(0, appwriteTimer.timeLeft - elapsedSeconds);
+        currentRoundId = appwriteTimer.currentRound;
+
+        if (appwriteTimer.status === 'active') {
+          calculatedPhase = 'betting';
+        } else {
+          // Status is 'calculating' (spin & results)
+          // We divide the 15-second calculation phase into:
+          // 10 seconds of 'locked' and 5 seconds of 'result' display
+          if (remainingSeconds > 5) {
+            calculatedPhase = 'locked';
+          } else {
+            calculatedPhase = 'result';
+          }
+        }
+      } else {
+        // Fallback: Mathematical Synchronized Game Loop
+        const now = getSyncedNow();
+        const nowSec = Math.floor(now / 1000);
+        sec = nowSec % 60;
+        currentRoundId = Math.floor(nowSec / 60).toString();
+
+        // Trigger sync with backend on round rollover
+        if (sec === 0) {
+          syncTime();
+        }
+
+        // Determine phase and timer based on current second
+        if (sec < 45) {
+          remainingSeconds = 45 - sec;
+          calculatedPhase = 'betting';
+        } else if (sec >= 45 && sec < 55) {
+          remainingSeconds = 55 - sec;
+          calculatedPhase = 'locked';
+        } else {
+          remainingSeconds = 60 - sec;
+          calculatedPhase = 'result';
+        }
       }
 
       // Check if new round started
@@ -1901,19 +2011,15 @@ export default function App() {
         setTotalPool(total);
       }
 
-      // Determine phase and timer based on current second
-      if (sec < 45) {
-        // Betting Phase (0 to 44 seconds)
-        const remainingSeconds = 45 - sec;
+      // Handle phases transitions smoothly
+      if (calculatedPhase === 'betting') {
         if (phase !== 'betting') {
           setPhase('betting');
           setWinner(null);
           playSound('start');
         }
         setTimer(remainingSeconds);
-      } else if (sec >= 45 && sec < 55) {
-        // Locked / Spin Phase (45 to 54 seconds)
-        const remainingSeconds = 55 - sec;
+      } else if (calculatedPhase === 'locked') {
         if (phase !== 'locked') {
           setPhase('locked');
           const wId = getDeterministicWinner(currentRoundId);
@@ -1923,9 +2029,7 @@ export default function App() {
         if (remainingSeconds <= 5 && remainingSeconds > 1) {
           playSound('tick');
         }
-      } else {
-        // Result Phase (55 to 59 seconds)
-        const remainingSeconds = 60 - sec;
+      } else if (calculatedPhase === 'result') {
         if (phase !== 'result') {
           setPhase('result');
           const wId = getDeterministicWinner(currentRoundId);
@@ -1944,7 +2048,7 @@ export default function App() {
     runGameLoop();
     const interval = setInterval(runGameLoop, 1000);
     return () => clearInterval(interval);
-  }, [phase, isMuted]);
+  }, [phase, isMuted, isAppwriteTimerActive, appwriteTimer]);
 
   // Listen to 'paymentSettings' in real-time
   useEffect(() => {
@@ -3955,6 +4059,69 @@ export default function App() {
                                   <p className="text-[10px] text-slate-500 font-bold">Manage global parameters & payments</p>
                                 </div>
                               </div>
+
+                              {/* Universal Real-Time Sync Timer Monitor */}
+                              <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 relative z-10 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Universal Sync Timer</span>
+                                  </div>
+                                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    isAppwriteTimerActive 
+                                      ? (isRealtimeConnected 
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20')
+                                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  }`}>
+                                    {isAppwriteTimerActive 
+                                      ? (isRealtimeConnected ? 'Appwrite Realtime Subscribed' : 'Realtime Reconnecting...') 
+                                      : 'Math Fallback Active'}
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-slate-900/50 p-2.5 rounded-xl border border-white/5 text-center">
+                                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">Current Round</div>
+                                    <div className="text-sm font-black text-white mt-1 font-mono">{lastSeenRoundIdRef.current || 'N/A'}</div>
+                                  </div>
+                                  <div className="bg-slate-900/50 p-2.5 rounded-xl border border-white/5 text-center">
+                                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">Time Left</div>
+                                    <div className="text-sm font-black text-orange-500 mt-1 font-mono">{timer}s</div>
+                                  </div>
+                                  <div className="bg-slate-900/50 p-2.5 rounded-xl border border-white/5 text-center">
+                                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">Engine Stage</div>
+                                    <div className={`text-[10px] font-black uppercase mt-2.5 ${phase === 'betting' ? 'text-emerald-400' : phase === 'locked' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                      {phase}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between text-[8px] text-slate-500 font-black uppercase pt-1 border-t border-white/5">
+                                  <span>Sync: 1s Drift Compensated</span>
+                                  <button 
+                                    onClick={async () => {
+                                      console.log("[Appwrite Timer Manual Sync] Fetching global timer...");
+                                      const state = await appwriteService.getGlobalTimerState();
+                                      if (state) {
+                                        setAppwriteTimer({
+                                          currentRound: state.current_round,
+                                          timeLeft: state.time_left,
+                                          status: state.status,
+                                          lastUpdated: Date.now()
+                                        });
+                                        setIsAppwriteTimerActive(true);
+                                        addNotification("Timer resynced with Appwrite server", "info");
+                                      } else {
+                                        addNotification("Failed to contact Appwrite timer document", "info");
+                                      }
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20"
+                                  >
+                                    FORCE RESYNC
+                                  </button>
+                                </div>
+                              </div>
                               
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -5522,7 +5689,7 @@ $$;`}
                                   </div>
                                   <div>
                                     <p className="text-xs font-black text-white uppercase">No Custom APK Uploaded</p>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Default '/app-release.apk' will be served</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Default Appwrite stored APK will be served</p>
                                   </div>
                                 </div>
                               )}
