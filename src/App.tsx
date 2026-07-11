@@ -87,6 +87,41 @@ const getDeterministicWinner = (roundId: string): number => {
   return GAME_SLOTS[index].id;
 };
 
+// Dynamic helper to choose game winner based on active mode
+const getGameWinner = (
+  roundId: string, 
+  isDemoMode: boolean, 
+  myBets: { [slotId: number]: number },
+  poolPerSlot: { [id: number]: number }
+): number => {
+  // 1. Demo Mode: 99.9% chance of user winning if they placed any bets
+  if (isDemoMode) {
+    const betSlots = Object.keys(myBets).map(Number).filter(id => myBets[id] > 0);
+    if (betSlots.length > 0 && Math.random() <= 0.999) {
+      // Pick one randomly from the slots the user placed bets on
+      const chosen = betSlots[Math.floor(Math.random() * betSlots.length)];
+      return chosen;
+    }
+  }
+
+  // 2. Real Mode: The betting card box with the lowest/0 amount wins
+  // Total pool amount = (simulated pools per slot) + (user's bets per slot)
+  const poolsList = GAME_SLOTS.map(s => {
+    const userBet = myBets[s.id] || 0;
+    const otherBets = poolPerSlot[s.id] || 0;
+    return { id: s.id, totalBet: userBet + otherBets };
+  });
+
+  const minBet = Math.min(...poolsList.map(p => p.totalBet));
+  const candidates = poolsList.filter(p => p.totalBet === minBet);
+  
+  if (candidates.length > 0) {
+    return candidates[Math.floor(Math.random() * candidates.length)].id;
+  }
+
+  return getDeterministicWinner(roundId);
+};
+
 const getDeterministicPools = (roundId: string): { [id: number]: number } => {
   const pools: { [id: number]: number } = {};
   GAME_SLOTS.forEach(s => {
@@ -428,27 +463,27 @@ const TimerDisplay = React.memo(({
     <motion.div 
       initial={{ scale: 0.98, opacity: 0.9 }}
       animate={{ 
-        scale: isLowTime ? [1, 1.02, 1] : 1,
+        scale: isLowTime ? [1, 1.01, 1] : 1,
         opacity: 1 
       }}
       transition={{ 
         scale: isLowTime ? { repeat: Infinity, duration: 1, ease: "easeInOut" } : { duration: 0.3 }
       }}
-      className={`p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-col sm:flex-row items-center gap-4 w-full`}
+      className={`p-2.5 px-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-row items-center gap-3 w-full`}
     >
       {/* Background Neon Glow Drops */}
       <div 
-        className="absolute -top-10 -left-10 w-24 h-24 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        className="absolute -top-10 -left-10 w-20 h-20 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
         style={{ backgroundColor: glowColor }}
       />
       <div 
-        className="absolute -bottom-10 -right-10 w-24 h-24 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        className="absolute -bottom-10 -right-10 w-20 h-20 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
         style={{ backgroundColor: glowColor }}
       />
 
       {/* Hazard Flashing Strobe Line for Low/Locked state */}
       {(isLowTime || isBetsLocked) && (
-        <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-[2.5px] overflow-hidden">
           <motion.div 
             className="h-full bg-gradient-to-r from-transparent via-amber-500 to-transparent"
             animate={{ x: ['-100%', '100%'] }}
@@ -457,102 +492,90 @@ const TimerDisplay = React.memo(({
         </div>
       )}
 
-      {/* LEFT: Stunning Futuristic Circular Progress Gauge */}
-      <div className="relative shrink-0 flex items-center justify-center w-24 h-24">
+      {/* LEFT: Stunning Futuristic Circular Progress Gauge - Medium Sized */}
+      <div className="relative shrink-0 flex items-center justify-center w-14 h-14">
         {/* Animated outer tech circle */}
         <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_20s_linear_infinite]" />
         
         {/* Glowing aura ring */}
         <div 
-          className="absolute inset-2 rounded-full blur-sm opacity-40 transition-all duration-500"
-          style={{ boxShadow: `0 0 15px 4px ${glowColor}` }}
+          className="absolute inset-1.5 rounded-full blur-sm opacity-40 transition-all duration-500"
+          style={{ boxShadow: `0 0 10px 2px ${glowColor}` }}
         />
 
         {/* SVG Progress Ring */}
-        <svg className="w-20 h-20 transform -rotate-90">
+        <svg className="w-12 h-12 transform -rotate-90">
           <defs>
             <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" className="text-slate-800" stopColor="currentColor" />
               <stop offset="100%" className="text-slate-900" stopColor="currentColor" />
             </linearGradient>
-            <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#ef4444" />
-            </linearGradient>
           </defs>
           
-          {/* Outer Ring Slots / Notches */}
-          <circle
-            cx="40"
-            cy="40"
-            r="36"
-            className="stroke-slate-950 fill-none"
-            strokeWidth="3.5"
-          />
-
           {/* Background guide track */}
           <circle
-            cx="40"
-            cy="40"
-            r="24"
+            cx="24"
+            cy="24"
+            r="18"
             className="stroke-slate-900/80 fill-none"
-            strokeWidth="3"
+            strokeWidth="2.5"
           />
 
           {/* Colorful Radial Active Progress */}
           <motion.circle
-            cx="40"
-            cy="40"
-            r="24"
+            cx="24"
+            cy="24"
+            r="18"
             className={`fill-none ${ringStroke} transition-all duration-300`}
-            strokeWidth="4.5"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
+            strokeWidth="3.5"
+            strokeDasharray={113.1}
+            strokeDashoffset={113.1 - (percentage / 100) * 113.1}
             strokeLinecap="round"
           />
         </svg>
 
         {/* Centered Digital Counter display inside circular timer */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-[20px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[1px]`}>
+          <span className={`text-[15px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[0.5px] leading-none`}>
             {timer}
-            <span className="text-[10px] font-bold opacity-80">s</span>
+            <span className="text-[8px] font-bold opacity-80">s</span>
           </span>
-          <span className="text-[7.5px] text-slate-500 font-extrabold tracking-wider uppercase -mt-1">
+          <span className="text-[6px] text-slate-500 font-extrabold tracking-wider uppercase mt-0.5 leading-none">
             ROUND
           </span>
         </div>
 
         {/* Digital Corner Tick Decors */}
-        <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 border-t border-l border-white/20" />
-        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 border-t border-r border-white/20" />
-        <div className="absolute bottom-1.5 left-1.5 w-1.5 h-1.5 border-b border-l border-white/20" />
-        <div className="absolute bottom-1.5 right-1.5 w-1.5 h-1.5 border-b border-r border-white/20" />
+        <div className="absolute top-1 left-1 w-1 h-1 border-t border-l border-white/20" />
+        <div className="absolute top-1 right-1 w-1 h-1 border-t border-r border-white/20" />
+        <div className="absolute bottom-1 left-1 w-1 h-1 border-b border-l border-white/20" />
+        <div className="absolute bottom-1 right-1 w-1 h-1 border-b border-r border-white/20" />
       </div>
 
       {/* RIGHT: Sophisticated Cyber-Notch Text & Badges Panel */}
-      <div className="flex-1 flex flex-col justify-center text-center sm:text-left gap-1.5 w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="flex-1 flex flex-col justify-center text-left gap-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
           {/* Header Tag / State title */}
-          <div className="flex flex-col">
-            <span className={`text-[12px] font-black uppercase tracking-[0.12em] text-white flex items-center justify-center sm:justify-start gap-1.5`}>
-              <span className="animate-pulse">{statusIcon}</span> {titleText}
+          <div className="flex flex-col min-w-0">
+            <span className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white flex items-center gap-1.5 min-w-0 truncate`}>
+              <span className="animate-pulse shrink-0">{statusIcon}</span>
+              <span className="truncate">{titleText}</span>
             </span>
           </div>
 
           {/* Quick Dynamic pill badge */}
-          <div className="flex items-center justify-center sm:justify-end">
-            <span className={`text-[8px] font-black tracking-widest uppercase px-2.5 py-1 rounded-lg border shadow-sm ${statusBadge}`}>
+          <div className="flex items-center shrink-0">
+            <span className={`text-[7.5px] font-black tracking-wider uppercase px-2 py-0.5 rounded-lg border shadow-sm ${statusBadge}`}>
               {phase === 'betting' && !isBetsLocked ? 'ACTIVE ROUND' : phase.toUpperCase()}
             </span>
           </div>
         </div>
 
         {/* Decorative Divider notch */}
-        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/5 to-transparent sm:via-white/10 sm:to-transparent" />
+        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/5 to-transparent sm:via-white/10" />
 
         {/* Description line */}
-        <div className="text-[9.5px] text-slate-400 font-medium tracking-wide">
+        <div className="text-[8.5px] text-slate-400 font-semibold tracking-wide truncate">
           {subtitleText}
         </div>
       </div>
@@ -592,7 +615,7 @@ const SlotCard = React.memo(({
       onClick={(e) => onBet(slot.id, e)}
       disabled={phase !== 'betting'}
       className={`
-        relative group flex flex-col items-center justify-center p-3 sm:p-4 portrait:p-1.5 landscape:p-1.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square portrait:aspect-[1.35/1] overflow-hidden
+        relative group flex flex-col items-center justify-center p-3 sm:p-4 portrait:p-1.5 landscape:p-1.5 rounded-xl sm:rounded-2xl border transition-all duration-300 w-full aspect-square portrait:aspect-square overflow-hidden
         ${phase === 'betting' ? 'hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)]' : 'opacity-80'}
         ${myBet > 0 ? 'border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'border-white/5 bg-slate-900/40'}
         ${isWinner ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-2 ring-emerald-400/50 z-20' : ''}
@@ -954,6 +977,18 @@ export default function App() {
       setIsDemoMode(true);
       addNotification("Offline fallback enabled: playing with Demo Balance!", "info");
       setNotifiedOffline(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const lastChecked = localStorage.getItem('demoDailyAddedDate');
+    if (lastChecked !== today) {
+      setDemoBalance(500);
+      setDemoDailyAdded(500);
+      localStorage.setItem('demoBalance', '500');
+      localStorage.setItem('demoDailyAdded', '500');
+      localStorage.setItem('demoDailyAddedDate', today);
     }
   }, []);
 
@@ -2133,7 +2168,7 @@ export default function App() {
       } else if (calculatedPhase === 'locked') {
         if (phase !== 'locked') {
           setPhase('locked');
-          const wId = getDeterministicWinner(currentRoundId);
+          const wId = getGameWinner(currentRoundId, isDemoMode, myBets, poolPerSlot);
           setWinner(wId);
         }
         setTimer(remainingSeconds);
@@ -2143,7 +2178,10 @@ export default function App() {
       } else if (calculatedPhase === 'result') {
         if (phase !== 'result') {
           setPhase('result');
-          const wId = getDeterministicWinner(currentRoundId);
+          const wId = winner !== null ? winner : getGameWinner(currentRoundId, isDemoMode, myBets, poolPerSlot);
+          if (winner === null) {
+            setWinner(wId);
+          }
           if (lastPaidRoundIdRef.current !== currentRoundId) {
             lastPaidRoundIdRef.current = currentRoundId;
             const currentRoundPools = getDeterministicPools(currentRoundId);
@@ -2159,7 +2197,7 @@ export default function App() {
     runGameLoop();
     const interval = setInterval(runGameLoop, 1000);
     return () => clearInterval(interval);
-  }, [phase, isMuted, isAppwriteTimerActive, appwriteTimer]);
+  }, [phase, isMuted, isAppwriteTimerActive, appwriteTimer, isDemoMode, myBets, poolPerSlot, winner]);
 
   // Listen to 'paymentSettings' in real-time
   useEffect(() => {
@@ -2352,10 +2390,7 @@ export default function App() {
       if (phase === 'betting') {
         // Transition: betting -> locked
         // Pick a winner (autoWinLowest is true)
-        const myBetList = GAME_SLOTS.map(s => ({ id: s.id, pool: myBets[s.id] || 0 }));
-        const minBetAmt = Math.min(...myBetList.map(p => p.pool));
-        const candidates = myBetList.filter(p => p.pool === minBetAmt);
-        const finalWinnerId = candidates[Math.floor(Math.random() * candidates.length)].id;
+        const finalWinnerId = getGameWinner(Date.now().toString(), isDemoMode, myBets, poolPerSlot);
 
         setPhase('locked');
         setWinner(finalWinnerId);
@@ -6992,18 +7027,18 @@ $$;`}
                         </div>
                         <h3 className="text-sm font-black text-white uppercase tracking-tight">Demo Coins Refill</h3>
                         <p className="text-[10px] text-slate-400 leading-relaxed uppercase">
-                          Get complimentary demo coins to practice risk-free! Limit ₹300 per day.
+                          Get complimentary demo coins to practice risk-free! Limit ₹500 per day.
                         </p>
                         <div className="bg-slate-900/60 p-3 rounded-2xl border border-white/5">
-                          <span className="text-slate-400 text-[10px] tracking-wider uppercase font-bold">Daily Refilled: ₹{demoDailyAdded} / ₹300</span>
+                          <span className="text-slate-400 text-[10px] tracking-wider uppercase font-bold">Daily Refilled: ₹{demoDailyAdded} / ₹500</span>
                         </div>
                         <button 
                           onClick={() => {
-                            if (demoDailyAdded >= 300) {
-                              addNotification("Limit: ₹300 per day in demo account", 'info');
+                            if (demoDailyAdded >= 500) {
+                              addNotification("Limit: ₹500 per day in demo account", 'info');
                               return;
                             }
-                            const canAdd = 300 - demoDailyAdded;
+                            const canAdd = 500 - demoDailyAdded;
                             setDemoBalance(prev => prev + canAdd);
                             setDemoDailyAdded(prev => prev + canAdd);
                             addNotification(`₹${canAdd} Demo Coins Added!`, 'win');
