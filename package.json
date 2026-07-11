@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "static": "next build",
+    "app:sync": "npx cap sync android",
+    "app:open": "npx cap open android",
     "build:android": "npm run build && npx cap sync",
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open android"

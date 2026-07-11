@@ -971,13 +971,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isFirestoreOffline) {
-      console.warn("[App] Firestore initialized in offline mode. Forcing local demo mode fallback.");
-      setDbConnectionStatus('Disconnected');
-      setIsDemoMode(true);
-      addNotification("Offline fallback enabled: playing with Demo Balance!", "info");
-      setNotifiedOffline(true);
-    }
+    // Set connection status to Connected and default to Real Mode as requested by user
+    setDbConnectionStatus('Connected');
+    setIsDemoMode(false);
   }, []);
 
   useEffect(() => {
@@ -6662,6 +6658,22 @@ $$;`}
                       </button>
                     </form>
                   )}
+
+                  {/* Demo Mode Fallback Link for Guests */}
+                  <div className="flex items-center justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDemoMode(true);
+                        setIsAuthModalOpen(false);
+                        addNotification("Switched to Demo Practice Mode!", "info");
+                      }}
+                      className="text-[10px] font-black text-amber-500 hover:text-amber-400 tracking-widest uppercase transition-colors flex items-center gap-1.5 cursor-pointer hover:underline"
+                    >
+                      <Terminal size={12} />
+                      <span>Practice in Demo Mode (डेमो मोड मध्ये खेळा)</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
