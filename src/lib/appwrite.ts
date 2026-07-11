@@ -1,7 +1,7 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
-const ENDPOINT = (import.meta as any).env?.VITE_APPWRITE_ENDPOINT || 'https://api.sorat.in/v1';
+const ENDPOINT = 'https://api.sorat.in/v1';
 const PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '6a4e644b001268fb3a25';
 
 // Export App URL variables for the application
@@ -44,8 +44,11 @@ export const appwriteService = {
   signInWithGoogle: async (): Promise<void> => {
     try {
       console.log('[Appwrite Auth] Starting Google OAuth session...');
-      // Exact production redirect URL requested by user
-      const redirectUrl = 'https://play.sorat.in';
+      // Dynamically match browser context for the backup/production OAuth redirects saved in the console
+      const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      const redirectUrl = currentOrigin && (currentOrigin.includes('sorat') || currentOrigin.includes('localhost') || currentOrigin.includes('run.app'))
+        ? currentOrigin
+        : 'https://play.sorat.in';
       
       await account.createOAuth2Session(
         OAuthProvider.Google,
