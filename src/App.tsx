@@ -241,144 +241,252 @@ const TimerDisplay = React.memo(({
   // Calculate percentage
   const percentage = maxDuration > 0 ? (Math.min(timer, maxDuration) / maxDuration) * 100 : 0;
 
-  // Colors, indicators & texts based on active status
-  let themeColor = 'text-emerald-400';
-  let barColor = 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.7)]';
-  let bgColor = 'bg-slate-950/40 border-slate-800 shadow-[0_4px_24px_rgba(0,0,0,0.2)]';
-  let statusText = 'Betting Operational';
-  let description = 'Place your strategic tokens';
-  let badgeIcon = '🟢';
+  // Circle progress calculation (Radius = 24, Circumference ~ 150.8)
+  const radius = 24;
+  const circumference = 2 * Math.PI * radius; // ~150.8
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  // Highly-immersive styles & texts based on active status
+  let glowColor = 'rgba(16,185,129,0.3)';
+  let accentColor = 'from-emerald-500 to-teal-400';
+  let textColor = 'text-emerald-400';
+  let textShadow = 'shadow-[0_0_15px_rgba(16,185,129,0.5)]';
+  let ringStroke = 'stroke-emerald-500';
+  let statusBadge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+  let cardBorder = 'border-emerald-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.05)]';
+  let bgGradient = 'bg-slate-950/80 backdrop-blur-md';
+  let titleText = 'BETS OPEN • बैटिंग चालू';
+  let subtitleText = 'Place your strategic tokens on any slot';
+  let dynamicStatusHindi = 'अपनी चालें खेलें • समय बाकी है';
+  let statusIcon = '🟢';
 
   if (isBetsLocked) {
-    themeColor = 'text-rose-500 font-black animate-pulse';
-    barColor = 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.8)]';
-    bgColor = 'bg-rose-950/10 border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.1)]';
-    statusText = 'BETS LOCKDOWN';
-    description = 'No more bets!';
-    badgeIcon = '🛑';
+    glowColor = 'rgba(239,68,68,0.5)';
+    accentColor = 'from-rose-600 to-red-500';
+    textColor = 'text-rose-500 font-black animate-pulse';
+    textShadow = 'shadow-[0_0_20px_rgba(239,68,68,0.6)]';
+    ringStroke = 'stroke-rose-600';
+    statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse';
+    cardBorder = 'border-rose-500/30 shadow-[0_0_30px_rgba(239,68,68,0.15)]';
+    bgGradient = 'bg-slate-950/90 backdrop-blur-md';
+    titleText = 'BETS LOCKED • बैटिंग बंद';
+    subtitleText = 'Wait for secure wheel rotation result';
+    dynamicStatusHindi = 'बैटिंग बंद है • परिणाम की प्रतीक्षा करें';
+    statusIcon = '🛑';
   } else if (isLowTime) {
-    themeColor = 'text-amber-400 font-extrabold scale-110';
-    barColor = 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.8)]';
-    bgColor = 'bg-amber-950/10 border-amber-500/10 animate-pulse';
-    statusText = 'TIME RUNNING OUT';
-    description = 'Locking bets extremely soon!';
-    badgeIcon = '⏳';
+    glowColor = 'rgba(245,158,11,0.4)';
+    accentColor = 'from-amber-500 to-orange-400';
+    textColor = 'text-amber-400 font-extrabold';
+    textShadow = 'shadow-[0_0_15px_rgba(245,158,11,0.5)]';
+    ringStroke = 'stroke-amber-500';
+    statusBadge = 'bg-amber-500/25 text-amber-300 border-amber-500/30 animate-pulse';
+    cardBorder = 'border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.1)]';
+    bgGradient = 'bg-slate-950/85 backdrop-blur-md';
+    titleText = 'HURRY UP • जल्दी करें!';
+    subtitleText = 'Time is running out extremely fast';
+    dynamicStatusHindi = 'जल्दी करें • समय समाप्त होने वाला है';
+    statusIcon = '⏳';
   } else if (phase === 'locked') {
-    themeColor = 'text-amber-500';
-    barColor = 'bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.7)]';
-    bgColor = 'bg-amber-950/10 border-amber-500/20';
-    statusText = 'CALCULATING ENGINE';
-    description = 'Running secure verified selection...';
-    badgeIcon = '⚡';
+    glowColor = 'rgba(245,158,11,0.3)';
+    accentColor = 'from-amber-500 to-yellow-400';
+    textColor = 'text-amber-500';
+    textShadow = 'shadow-[0_0_15px_rgba(245,158,11,0.4)]';
+    ringStroke = 'stroke-amber-500';
+    statusBadge = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    cardBorder = 'border-amber-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4)]';
+    titleText = 'SELECTING SLOT • गणना जारी';
+    subtitleText = 'Appwrite cryptographic engine running';
+    dynamicStatusHindi = 'विजेता स्लॉट का चयन किया जा रहा है...';
+    statusIcon = '⚡';
   } else if (phase === 'result') {
     const userPlacedBets = Object.values(myBets).some(val => val > 0);
     const userWon = winner !== null && myBets[winner] !== undefined && myBets[winner] > 0;
 
     if (userPlacedBets) {
       if (userWon) {
-        themeColor = 'text-green-400 font-black scale-110';
-        barColor = 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.8)]';
-        bgColor = 'bg-emerald-950/70 border-emerald-500/50 shadow-[0_0_24px_rgba(16,185,129,0.25)] animate-pulse';
-        statusText = 'CONGRATULATIONS! YOU WON';
+        glowColor = 'rgba(34,197,94,0.5)';
+        accentColor = 'from-green-500 to-emerald-400';
+        textColor = 'text-green-400 font-black';
+        textShadow = 'shadow-[0_0_25px_rgba(34,197,94,0.7)]';
+        ringStroke = 'stroke-green-500';
+        statusBadge = 'bg-green-500/20 text-green-300 border-green-500/30 animate-bounce';
+        cardBorder = 'border-green-500/40 shadow-[0_0_35px_rgba(34,197,94,0.25)]';
+        titleText = 'VICTORY! • बधाई हो!';
         const winAmount = myBets[winner!] * multiplier;
         const slotName = customNames[winner!] || GAME_SLOTS.find(s => s.id === winner)?.name || 'Unknown';
-        description = `Won ₹${winAmount.toLocaleString()} • Slot: ${slotName}`;
-        badgeIcon = '🎉';
+        subtitleText = `You won ₹${winAmount.toLocaleString()} • Slot: ${slotName}`;
+        dynamicStatusHindi = `आप ₹${winAmount.toLocaleString()} जीत चुके हैं!`;
+        statusIcon = '🎉';
       } else {
-        themeColor = 'text-red-400 font-black';
-        barColor = 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)]';
-        bgColor = 'bg-rose-950/70 border-rose-500/50 shadow-[0_0_24px_rgba(244,63,94,0.2)]';
-        statusText = 'GAME OVER - YOU LOST';
+        glowColor = 'rgba(239,68,68,0.4)';
+        accentColor = 'from-red-600 to-rose-500';
+        textColor = 'text-red-400 font-black';
+        textShadow = 'shadow-[0_0_20px_rgba(239,68,68,0.5)]';
+        ringStroke = 'stroke-red-500';
+        statusBadge = 'bg-red-500/20 text-red-300 border-red-500/30';
+        cardBorder = 'border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.2)]';
+        titleText = 'TRY AGAIN • अगली बार प्रयास करें';
         const totalLost = Object.values(myBets).reduce((acc, curr) => acc + (curr || 0), 0);
         const winSlot = GAME_SLOTS.find(s => s.id === winner);
         const slotName = customNames[winner!] || winSlot?.name || 'Unknown';
-        description = `Lost ₹${totalLost.toLocaleString()} • Winner: ${slotName}`;
-        badgeIcon = '❌';
+        subtitleText = `Lost ₹${totalLost.toLocaleString()} • Winner was ${slotName}`;
+        dynamicStatusHindi = `विजेता: ${slotName} (₹${totalLost.toLocaleString()} नुकसान)`;
+        statusIcon = '❌';
       }
     } else {
-      themeColor = 'text-cyan-400 animate-pulse';
-      barColor = 'bg-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.7)]';
-      bgColor = 'bg-cyan-950/40 border-cyan-500/30';
+      glowColor = 'rgba(34,211,238,0.4)';
+      accentColor = 'from-cyan-500 to-sky-400';
+      textColor = 'text-cyan-400';
+      textShadow = 'shadow-[0_0_15px_rgba(34,211,238,0.4)]';
+      ringStroke = 'stroke-cyan-500';
+      statusBadge = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      cardBorder = 'border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4)]';
       const winSlot = GAME_SLOTS.find(s => s.id === winner);
       const slotName = customNames[winner!] || winSlot?.name || 'Unknown';
-      statusText = `ROUND COMPLETED • WINNER: ${slotName}`;
-      description = 'No active bets placed in this round';
-      badgeIcon = '🏆';
+      titleText = `ROUND WINNER: ${slotName.toUpperCase()}`;
+      subtitleText = 'No active bets placed in this round';
+      dynamicStatusHindi = `इस राउंड का विजेता स्लॉट: ${slotName}`;
+      statusIcon = '🏆';
     }
   }
 
   return (
-    <div className={`p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden ${bgColor} flex flex-col gap-2.5 w-full`}>
-      {/* Dynamic Background Warning Overlay when time is extremely low */}
-      {isLowTime && (
-        <span className="absolute inset-0 bg-amber-500/[0.03] pointer-events-none animate-pulse" />
-      )}
-      {isBetsLocked && (
-        <span className="absolute inset-0 bg-red-600/[0.04] pointer-events-none animate-pulse" />
-      )}
-      {phase === 'result' && Object.values(myBets).some(val => val > 0) && (
-        <span className={`absolute inset-0 pointer-events-none animate-pulse ${
-          winner !== null && myBets[winner] !== undefined && myBets[winner] > 0
-            ? 'bg-emerald-500/[0.06]'
-            : 'bg-rose-500/[0.06]'
-        }`} />
-      )}
+    <motion.div 
+      initial={{ scale: 0.98, opacity: 0.9 }}
+      animate={{ 
+        scale: isLowTime ? [1, 1.02, 1] : 1,
+        opacity: 1 
+      }}
+      transition={{ 
+        scale: isLowTime ? { repeat: Infinity, duration: 1, ease: "easeInOut" } : { duration: 0.3 }
+      }}
+      className={`p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-col sm:flex-row items-center gap-4 w-full`}
+    >
+      {/* Background Neon Glow Drops */}
+      <div 
+        className="absolute -top-10 -left-10 w-24 h-24 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        style={{ backgroundColor: glowColor }}
+      />
+      <div 
+        className="absolute -bottom-10 -right-10 w-24 h-24 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        style={{ backgroundColor: glowColor }}
+      />
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          {/* Creative Big Countdown Indicator */}
-          <div className="relative flex items-center justify-center bg-slate-950/90 border border-white/5 w-11 h-11 rounded-xl shadow-inner shrink-0">
-            <span className={`text-[15px] font-black tracking-tighter tabular-nums ${themeColor}`}>
-              {timer}s
-            </span>
-            {/* Subtle corner ticks */}
-            <div className="absolute top-1 left-1 w-1 h-1 border-t border-l border-white/20" />
-            <div className="absolute top-1 right-1 w-1 h-1 border-t border-r border-white/20" />
-            <div className="absolute bottom-1 left-1 w-1 h-1 border-b border-l border-white/20" />
-            <div className="absolute bottom-1 right-1 w-1 h-1 border-b border-r border-white/20" />
-          </div>
-
-          {/* Descriptive Information */}
-          <div className="flex flex-col text-left">
-            <div className="flex items-center gap-1.5 h-4">
-              <span className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-1">
-                <span className="text-xs">{badgeIcon}</span> {statusText}
-              </span>
-            </div>
-            <span className="text-[8.5px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 leading-none">
-              {description}
-            </span>
-          </div>
+      {/* Hazard Flashing Strobe Line for Low/Locked state */}
+      {(isLowTime || isBetsLocked) && (
+        <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden">
+          <motion.div 
+            className="h-full bg-gradient-to-r from-transparent via-amber-500 to-transparent"
+            animate={{ x: ['-100%', '100%'] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+          />
         </div>
+      )}
 
-        {/* Decorative dynamic badge */}
-        <div className="flex items-center gap-2">
-          {isBetsLocked ? (
-            <span className="text-[7.5px] font-black tracking-widest uppercase bg-rose-500/10 text-rose-400 px-2 py-1 rounded-md border border-rose-500/15">
-              CLOSED
-            </span>
-          ) : phase === 'betting' ? (
-            <span className="text-[7.5px] font-black tracking-widest uppercase bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/15 animate-pulse">
-              LIVE ROUND
-            </span>
-          ) : (
-            <span className="text-[7.5px] font-black tracking-widest uppercase bg-amber-500/10 text-amber-400 px-2 py-1 rounded-md border border-amber-500/15">
-              LOCKED
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Fluid Glowing Progress Bar */}
-      <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden relative border border-white/[0.02]">
-        <motion.div 
-          initial={{ width: "100%" }}
-          animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: "linear" }}
-          className={`h-full rounded-full ${barColor}`}
+      {/* LEFT: Stunning Futuristic Circular Progress Gauge */}
+      <div className="relative shrink-0 flex items-center justify-center w-24 h-24">
+        {/* Animated outer tech circle */}
+        <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_20s_linear_infinite]" />
+        
+        {/* Glowing aura ring */}
+        <div 
+          className="absolute inset-2 rounded-full blur-sm opacity-40 transition-all duration-500"
+          style={{ boxShadow: `0 0 15px 4px ${glowColor}` }}
         />
+
+        {/* SVG Progress Ring */}
+        <svg className="w-20 h-20 transform -rotate-90">
+          <defs>
+            <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" className="text-slate-800" stopColor="currentColor" />
+              <stop offset="100%" className="text-slate-900" stopColor="currentColor" />
+            </linearGradient>
+            <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#ef4444" />
+            </linearGradient>
+          </defs>
+          
+          {/* Outer Ring Slots / Notches */}
+          <circle
+            cx="40"
+            cy="40"
+            r="36"
+            className="stroke-slate-950 fill-none"
+            strokeWidth="3.5"
+          />
+
+          {/* Background guide track */}
+          <circle
+            cx="40"
+            cy="40"
+            r="24"
+            className="stroke-slate-900/80 fill-none"
+            strokeWidth="3"
+          />
+
+          {/* Colorful Radial Active Progress */}
+          <motion.circle
+            cx="40"
+            cy="40"
+            r="24"
+            className={`fill-none ${ringStroke} transition-all duration-300`}
+            strokeWidth="4.5"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </svg>
+
+        {/* Centered Digital Counter display inside circular timer */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`text-[20px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[1px]`}>
+            {timer}
+            <span className="text-[10px] font-bold opacity-80">s</span>
+          </span>
+          <span className="text-[7.5px] text-slate-500 font-extrabold tracking-wider uppercase -mt-1">
+            ROUND
+          </span>
+        </div>
+
+        {/* Digital Corner Tick Decors */}
+        <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 border-t border-l border-white/20" />
+        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 border-t border-r border-white/20" />
+        <div className="absolute bottom-1.5 left-1.5 w-1.5 h-1.5 border-b border-l border-white/20" />
+        <div className="absolute bottom-1.5 right-1.5 w-1.5 h-1.5 border-b border-r border-white/20" />
       </div>
-    </div>
+
+      {/* RIGHT: Sophisticated Cyber-Notch Text & Badges Panel */}
+      <div className="flex-1 flex flex-col justify-center text-center sm:text-left gap-1.5 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          {/* Header Tag / State title */}
+          <div className="flex flex-col">
+            <span className={`text-[12px] font-black uppercase tracking-[0.12em] text-white flex items-center justify-center sm:justify-start gap-1.5`}>
+              <span className="animate-pulse">{statusIcon}</span> {titleText}
+            </span>
+            {/* Hindi Dynamic Assist */}
+            <span className="text-[10px] text-yellow-500/90 font-bold tracking-normal mt-0.5">
+              {dynamicStatusHindi}
+            </span>
+          </div>
+
+          {/* Quick Dynamic pill badge */}
+          <div className="flex items-center justify-center sm:justify-end">
+            <span className={`text-[8px] font-black tracking-widest uppercase px-2.5 py-1 rounded-lg border shadow-sm ${statusBadge}`}>
+              {phase === 'betting' && !isBetsLocked ? 'ACTIVE ROUND' : phase.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        {/* Decorative Divider notch */}
+        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/5 to-transparent sm:via-white/10 sm:to-transparent" />
+
+        {/* Description line */}
+        <div className="text-[9.5px] text-slate-400 font-medium tracking-wide">
+          {subtitleText}
+        </div>
+      </div>
+    </motion.div>
   );
 });
 
