@@ -41,6 +41,7 @@ export interface AdminState {
   customNames?: { [slotId: number]: string };
   appLogoUrl?: string;
   upiPayeeName?: string;
+  apkUrl?: string;
 }
 
 export interface Dealer {

@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sun, Smartphone, Globe, Shield, Zap, Download, X, ArrowRight, CheckCircle2, Award, Star } from 'lucide-react';
+import { AdminState } from '../types';
 
-export default function CinematicLandingPage() {
+interface CinematicLandingPageProps {
+  adminState?: AdminState;
+}
+
+export default function CinematicLandingPage({ adminState }: CinematicLandingPageProps) {
   const [showDownloadPopup, setShowDownloadPopup] = useState(false);
   const [downloadStep, setDownloadStep] = useState<'idle' | 'generating' | 'downloading' | 'complete'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [showExporter, setShowExporter] = useState(false);
   const [localNotifications, setLocalNotifications] = useState<string[]>([]);
+
+  const logoUrl = adminState?.appLogoUrl || '';
+  const apkUrl = adminState?.apkUrl || '/app-release.apk';
 
   const addNotification = (msg: string, type?: string) => {
     setLocalNotifications(prev => [...prev, msg]);
@@ -17,8 +25,11 @@ export default function CinematicLandingPage() {
   };
 
   const getStandaloneHtmlContent = () => {
+    const logoUrl = adminState?.appLogoUrl || '';
+    const apkUrl = adminState?.apkUrl || '/app-release.apk';
+
     return `<!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -74,11 +85,15 @@ export default function CinematicLandingPage() {
         <div class="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-600 p-[1px] flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                    <div class="w-full h-full bg-black rounded-[11px] flex items-center justify-center">
-                        <svg class="text-yellow-400 w-5 h-5 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
-                        </svg>
-                    </div>
+                    ${logoUrl ? `
+                        <img src="${logoUrl}" alt="SORAT Logo" class="w-full h-full object-cover rounded-[11px]" referrerPolicy="no-referrer">
+                    ` : `
+                        <div class="w-full h-full bg-black rounded-[11px] flex items-center justify-center">
+                            <svg class="text-yellow-400 w-5 h-5 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
+                            </svg>
+                        </div>
+                    `}
                 </div>
                 <div>
                     <span class="text-2xl font-black tracking-widest bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent font-display">SORAT</span>
@@ -101,6 +116,21 @@ export default function CinematicLandingPage() {
 
     <!-- Main -->
     <main class="relative z-10 max-w-7xl mx-auto px-6 pt-16 md:pt-24 pb-20 flex flex-col items-center text-center">
+        <!-- Logo -->
+        ${logoUrl ? `
+            <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 p-[1.5px] flex items-center justify-center shadow-2xl shadow-yellow-500/20 mb-6 mx-auto">
+                <img src="${logoUrl}" alt="SORAT Logo" class="w-full h-full object-cover rounded-[22px]" referrerPolicy="no-referrer">
+            </div>
+        ` : `
+            <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 p-[1.5px] flex items-center justify-center shadow-2xl shadow-yellow-500/20 mb-6 mx-auto">
+                <div class="w-full h-full bg-black rounded-[22px] flex items-center justify-center relative overflow-hidden">
+                    <svg class="text-yellow-400 w-12 h-12 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
+                    </svg>
+                </div>
+            </div>
+        `}
+
         <!-- Elite Badge -->
         <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-black uppercase tracking-[0.2em] mb-8">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
@@ -109,9 +139,9 @@ export default function CinematicLandingPage() {
 
         <!-- Title -->
         <h1 class="text-4xl sm:text-6xl md:text-8xl font-extrabold tracking-tight leading-none text-white max-w-5xl uppercase font-display">
-            किस्मत और रफ़्तार का <br class="hidden md:inline">
+            THE ULTIMATE GAME OF <br class="hidden md:inline">
             <span class="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-600 bg-clip-text text-transparent font-black drop-shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
-                सर्वश्रेष्ठ खेल
+                LUCK & SPEED
             </span>
         </h1>
 
@@ -126,12 +156,6 @@ export default function CinematicLandingPage() {
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                 Download Android App
             </button>
-
-            <a href="https://play.sorat.in" class="w-full sm:w-auto px-8 py-5 bg-white/5 hover:bg-white/10 text-white text-sm font-black uppercase tracking-widest rounded-2xl transition-all border border-white/10 hover:border-yellow-500/30 flex items-center justify-center gap-2">
-                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                Play on Web
-                <svg class="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            </a>
         </div>
 
         <!-- Stats -->
@@ -198,8 +222,6 @@ export default function CinematicLandingPage() {
             </div>
 
             <div class="flex gap-6 text-[10px] font-black uppercase tracking-widest">
-                <a href="https://play.sorat.in" class="text-slate-400 hover:text-yellow-500 transition-colors">Play Portal</a>
-                <span class="text-slate-800">|</span>
                 <span class="text-yellow-500">Responsible Gaming</span>
                 <span class="text-slate-800">|</span>
                 <span class="text-slate-400">Secure 256-Bit SSL</span>
@@ -339,8 +361,8 @@ export default function CinematicLandingPage() {
 
         function triggerApkDownload() {
             const link = document.createElement('a');
-            link.href = '/app-release.apk';
-            link.download = 'app-release.apk';
+            link.href = '${apkUrl}';
+            link.download = 'Sorat_v2.0.apk';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -378,10 +400,10 @@ export default function CinematicLandingPage() {
             clearInterval(interval);
             setDownloadStep('complete');
             
-            // Actually trigger APK download (we use a generic app package structure or a mock trigger)
+            // Actually trigger APK download (we use the configured APK link)
             const link = document.createElement('a');
-            link.href = '/app-release.apk';
-            link.download = 'app-release.apk';
+            link.href = apkUrl;
+            link.download = 'Sorat_v2.0.apk';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -415,9 +437,13 @@ export default function CinematicLandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-600 p-[1px] flex items-center justify-center shadow-lg shadow-yellow-500/20">
-              <div className="w-full h-full bg-black rounded-[11px] flex items-center justify-center">
-                <Sun className="text-yellow-400 animate-spin-slow" size={20} />
-              </div>
+              {logoUrl ? (
+                <img src={logoUrl} alt="SORAT Logo" className="w-full h-full object-cover rounded-[11px]" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-full h-full bg-black rounded-[11px] flex items-center justify-center">
+                  <Sun className="text-yellow-400 animate-spin-slow" size={20} />
+                </div>
+              )}
             </div>
             <div>
               <span className="text-2xl font-black tracking-widest bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">SORAT</span>
@@ -443,6 +469,29 @@ export default function CinematicLandingPage() {
 
       {/* Main Hero Section */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-16 md:pt-24 pb-20 flex flex-col items-center text-center">
+        {/* Large Central Logo */}
+        {logoUrl ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="w-24 h-24 rounded-3xl bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 p-[1.5px] flex items-center justify-center shadow-2xl shadow-yellow-500/20 mb-6"
+          >
+            <img src={logoUrl} alt="SORAT Logo" className="w-full h-full object-cover rounded-[22px]" referrerPolicy="no-referrer" />
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="w-24 h-24 rounded-3xl bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 p-[1.5px] flex items-center justify-center shadow-2xl shadow-yellow-500/20 mb-6"
+          >
+            <div className="w-full h-full bg-black rounded-[22px] flex items-center justify-center relative overflow-hidden">
+              <Sun className="text-yellow-400 animate-spin-slow" size={48} />
+            </div>
+          </motion.div>
+        )}
+
         {/* Elite Badge */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -461,9 +510,9 @@ export default function CinematicLandingPage() {
           transition={{ duration: 0.8, delay: 0.1 }}
           className="text-4xl sm:text-6xl md:text-8xl font-extrabold tracking-tight leading-none text-white max-w-5xl uppercase"
         >
-          किस्मत और रफ़्तार का <br className="hidden md:inline" />
+          THE ULTIMATE GAME OF <br className="hidden md:inline" />
           <span className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-600 bg-clip-text text-transparent font-black drop-shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
-            सर्वश्रेष्ठ खेल
+            LUCK & SPEED
           </span>
         </motion.h1>
 
@@ -492,16 +541,6 @@ export default function CinematicLandingPage() {
             <Smartphone size={18} className="group-hover:scale-110 transition-transform" />
             Download Android App
           </button>
-
-          {/* Play on Web Secondary Link */}
-          <a
-            href="https://play.sorat.in"
-            className="w-full sm:w-auto px-8 py-5 bg-white/5 hover:bg-white/10 text-white text-sm font-black uppercase tracking-widest rounded-2xl transition-all border border-white/10 hover:border-yellow-500/30 cursor-pointer flex items-center justify-center gap-2"
-          >
-            <Globe size={18} className="text-yellow-400" />
-            Play on Web
-            <ArrowRight size={14} className="opacity-60" />
-          </a>
         </motion.div>
 
         {/* Stats Grid */}

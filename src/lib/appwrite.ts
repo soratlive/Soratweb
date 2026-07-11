@@ -181,6 +181,29 @@ export const appwriteService = {
   },
 
   /**
+   * Upload APK file to Appwrite storage Bucket
+   */
+  uploadApkFile: async (file: File): Promise<string> => {
+    try {
+      console.log('[Appwrite Storage] Uploading APK file to bucket...');
+      const fileId = ID.unique();
+      const response = await storage.createFile(
+        SCREENSHOTS_BUCKET_ID,
+        fileId,
+        file
+      );
+
+      // Construct direct URL to view/download uploaded APK file
+      const directUrl = `${ENDPOINT}/storage/buckets/${SCREENSHOTS_BUCKET_ID}/files/${response.$id}/view?project=${PROJECT_ID}`;
+      console.log('[Appwrite Storage] APK file uploaded successfully. URL:', directUrl);
+      return directUrl;
+    } catch (error) {
+      console.error('[Appwrite Storage] APK upload failed:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Submits a new payment proof entry into database
    */
   createPaymentProof: async (proofData: { id: string, user_email: string, screenshot_url: string, amount: number }): Promise<any> => {

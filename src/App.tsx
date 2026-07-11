@@ -255,9 +255,8 @@ const TimerDisplay = React.memo(({
   let statusBadge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
   let cardBorder = 'border-emerald-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.05)]';
   let bgGradient = 'bg-slate-950/80 backdrop-blur-md';
-  let titleText = 'BETS OPEN • बैटिंग चालू';
-  let subtitleText = 'Place your strategic tokens on any slot';
-  let dynamicStatusHindi = 'अपनी चालें खेलें • समय बाकी है';
+  let titleText = 'BETS OPEN';
+  let subtitleText = 'Place your tokens on any slot';
   let statusIcon = '🟢';
 
   if (isBetsLocked) {
@@ -269,9 +268,8 @@ const TimerDisplay = React.memo(({
     statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse';
     cardBorder = 'border-rose-500/30 shadow-[0_0_30px_rgba(239,68,68,0.15)]';
     bgGradient = 'bg-slate-950/90 backdrop-blur-md';
-    titleText = 'BETS LOCKED • बैटिंग बंद';
-    subtitleText = 'Wait for secure wheel rotation result';
-    dynamicStatusHindi = 'बैटिंग बंद है • परिणाम की प्रतीक्षा करें';
+    titleText = 'BETS LOCKED';
+    subtitleText = 'Wait for wheel spin result';
     statusIcon = '🛑';
   } else if (isLowTime) {
     glowColor = 'rgba(245,158,11,0.4)';
@@ -282,9 +280,8 @@ const TimerDisplay = React.memo(({
     statusBadge = 'bg-amber-500/25 text-amber-300 border-amber-500/30 animate-pulse';
     cardBorder = 'border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.1)]';
     bgGradient = 'bg-slate-950/85 backdrop-blur-md';
-    titleText = 'HURRY UP • जल्दी करें!';
-    subtitleText = 'Time is running out extremely fast';
-    dynamicStatusHindi = 'जल्दी करें • समय समाप्त होने वाला है';
+    titleText = 'HURRY UP';
+    subtitleText = 'Time is running out';
     statusIcon = '⏳';
   } else if (phase === 'locked') {
     glowColor = 'rgba(245,158,11,0.3)';
@@ -294,9 +291,8 @@ const TimerDisplay = React.memo(({
     ringStroke = 'stroke-amber-500';
     statusBadge = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
     cardBorder = 'border-amber-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4)]';
-    titleText = 'SELECTING SLOT • गणना जारी';
-    subtitleText = 'Appwrite cryptographic engine running';
-    dynamicStatusHindi = 'विजेता स्लॉट का चयन किया जा रहा है...';
+    titleText = 'SELECTING SLOT';
+    subtitleText = 'Calculating result...';
     statusIcon = '⚡';
   } else if (phase === 'result') {
     const userPlacedBets = Object.values(myBets).some(val => val > 0);
@@ -311,11 +307,10 @@ const TimerDisplay = React.memo(({
         ringStroke = 'stroke-green-500';
         statusBadge = 'bg-green-500/20 text-green-300 border-green-500/30 animate-bounce';
         cardBorder = 'border-green-500/40 shadow-[0_0_35px_rgba(34,197,94,0.25)]';
-        titleText = 'VICTORY! • बधाई हो!';
+        titleText = 'VICTORY!';
         const winAmount = myBets[winner!] * multiplier;
         const slotName = customNames[winner!] || GAME_SLOTS.find(s => s.id === winner)?.name || 'Unknown';
-        subtitleText = `You won ₹${winAmount.toLocaleString()} • Slot: ${slotName}`;
-        dynamicStatusHindi = `आप ₹${winAmount.toLocaleString()} जीत चुके हैं!`;
+        subtitleText = `Won ₹${winAmount.toLocaleString()} on ${slotName}`;
         statusIcon = '🎉';
       } else {
         glowColor = 'rgba(239,68,68,0.4)';
@@ -325,12 +320,11 @@ const TimerDisplay = React.memo(({
         ringStroke = 'stroke-red-500';
         statusBadge = 'bg-red-500/20 text-red-300 border-red-500/30';
         cardBorder = 'border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.2)]';
-        titleText = 'TRY AGAIN • अगली बार प्रयास करें';
+        titleText = 'TRY AGAIN';
         const totalLost = Object.values(myBets).reduce((acc, curr) => acc + (curr || 0), 0);
         const winSlot = GAME_SLOTS.find(s => s.id === winner);
         const slotName = customNames[winner!] || winSlot?.name || 'Unknown';
-        subtitleText = `Lost ₹${totalLost.toLocaleString()} • Winner was ${slotName}`;
-        dynamicStatusHindi = `विजेता: ${slotName} (₹${totalLost.toLocaleString()} नुकसान)`;
+        subtitleText = `Lost ₹${totalLost.toLocaleString()} • Winner: ${slotName}`;
         statusIcon = '❌';
       }
     } else {
@@ -343,9 +337,8 @@ const TimerDisplay = React.memo(({
       cardBorder = 'border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.4)]';
       const winSlot = GAME_SLOTS.find(s => s.id === winner);
       const slotName = customNames[winner!] || winSlot?.name || 'Unknown';
-      titleText = `ROUND WINNER: ${slotName.toUpperCase()}`;
-      subtitleText = 'No active bets placed in this round';
-      dynamicStatusHindi = `इस राउंड का विजेता स्लॉट: ${slotName}`;
+      titleText = `WINNER: ${slotName.toUpperCase()}`;
+      subtitleText = 'No active bets placed';
       statusIcon = '🏆';
     }
   }
@@ -463,10 +456,6 @@ const TimerDisplay = React.memo(({
           <div className="flex flex-col">
             <span className={`text-[12px] font-black uppercase tracking-[0.12em] text-white flex items-center justify-center sm:justify-start gap-1.5`}>
               <span className="animate-pulse">{statusIcon}</span> {titleText}
-            </span>
-            {/* Hindi Dynamic Assist */}
-            <span className="text-[10px] text-yellow-500/90 font-bold tracking-normal mt-0.5">
-              {dynamicStatusHindi}
             </span>
           </div>
 
@@ -906,7 +895,9 @@ export default function App() {
   };
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingApk, setIsUploadingApk] = useState(false);
   const [logoUrlInput, setLogoUrlInput] = useState('');
+  const [apkUrlInput, setApkUrlInput] = useState('');
 
   const uploadToStorage = async (base64Str: string, fileName: string): Promise<string> => {
     setIsUploading(true);
@@ -1367,6 +1358,13 @@ export default function App() {
       localStorage.setItem('admin_upi_payee_name', updated.payeeName);
       localStorage.setItem('admin_payment_link', JSON.stringify(updated));
       
+      // Save to Firestore settings/global
+      try {
+        await setDoc(doc(db, 'settings', 'global'), persistableState);
+      } catch (errFirestore) {
+        console.error("Firestore settings save failed:", errFirestore);
+      }
+
       setPaymentSettings(updated);
       addNotification("Save Successfully!", 'win');
     } catch (error) {
@@ -1442,9 +1440,34 @@ export default function App() {
       const updatedState = { ...adminState, appLogoUrl: logoUrl };
       localStorage.setItem('admin_notif_settings', JSON.stringify(updatedState));
       setAdminState(updatedState);
+      try {
+        await setDoc(doc(db, 'settings', 'global'), updatedState);
+      } catch (errFirestore) {
+        console.error("Firestore settings save failed:", errFirestore);
+      }
       addNotification("Logo saved successfully!", 'win');
     } catch (error) {
       console.error("Logo save failed:", error);
+    } finally {
+      setIsSettingsSaving(false);
+    }
+  };
+
+  const saveApkUrlDirectly = async (apkUrl: string) => {
+    if (!isAdminAuthorized) return;
+    setIsSettingsSaving(true);
+    try {
+      const updatedState = { ...adminState, apkUrl };
+      localStorage.setItem('admin_notif_settings', JSON.stringify(updatedState));
+      setAdminState(updatedState);
+      try {
+        await setDoc(doc(db, 'settings', 'global'), updatedState);
+      } catch (errFirestore) {
+        console.error("Firestore settings save failed:", errFirestore);
+      }
+      addNotification("APK URL saved successfully!", 'win');
+    } catch (error) {
+      console.error("APK URL save failed:", error);
     } finally {
       setIsSettingsSaving(false);
     }
@@ -3152,7 +3175,7 @@ export default function App() {
      new URLSearchParams(window.location.search).get('landing') === 'true');
 
   if (isMainDomain) {
-    return <CinematicLandingPage />;
+    return <CinematicLandingPage adminState={adminState} />;
   }
 
   // Session Verification Splash Screen: Do not flash any partial or incorrect screens during active verification
@@ -5463,6 +5486,99 @@ $$;`}
                                       {adminState.appLogoUrl ? <img src={adminState.appLogoUrl} className="w-full h-full object-cover" /> : <Dice5 size={24} className="text-red-500" />}
                                    </div>
                                    <span className="text-[7px] font-bold text-slate-500 uppercase mt-2">Home Screen</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* APK & App Release Management Card */}
+                          <div className="bg-slate-900 p-6 rounded-[32px] border border-white/5 space-y-6">
+                            <h4 className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase flex items-center gap-2">
+                              <Smartphone size={14} className="text-yellow-500" />
+                              APK File & Download Management
+                            </h4>
+
+                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/10 rounded-3xl bg-slate-950/50 group hover:border-yellow-500/30 transition-all">
+                              {adminState.apkUrl ? (
+                                <div className="text-center space-y-4">
+                                  <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 mx-auto">
+                                    <Smartphone size={32} />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-black text-white uppercase">APK is Live & Configured</p>
+                                    <p className="text-[9px] text-slate-400 font-bold truncate max-w-xs mt-1 bg-black/40 px-3 py-1 rounded-md border border-white/5 font-mono">{adminState.apkUrl}</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => saveApkUrlDirectly('')}
+                                    className="px-4 py-2 bg-red-600/15 border border-red-500/20 text-red-500 rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all cursor-pointer"
+                                  >
+                                    Remove Link
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-3 text-center">
+                                  <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 border border-yellow-500/20">
+                                    <Smartphone size={32} />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-black text-white uppercase">No Custom APK Uploaded</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Default '/app-release.apk' will be served</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="mt-6 flex flex-col items-center gap-4 w-full max-w-xs">
+                                <label className="cursor-pointer w-full">
+                                  <input 
+                                    type="file" 
+                                    accept=".apk" 
+                                    className="hidden" 
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        setIsUploadingApk(true);
+                                        try {
+                                          addNotification("Uploading APK to Appwrite Storage...", 'info');
+                                          const uploadedUrl = await appwriteService.uploadApkFile(file);
+                                          await saveApkUrlDirectly(uploadedUrl);
+                                        } catch (err: any) {
+                                          addNotification(`Upload failed: ${err.message || String(err)}`, 'info');
+                                        } finally {
+                                          setIsUploadingApk(false);
+                                        }
+                                      }
+                                    }}
+                                  />
+                                  <div className="bg-slate-800 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-white/5 flex items-center justify-center gap-2 cursor-pointer">
+                                    {isUploadingApk ? (
+                                      <RefreshCcw size={14} className="animate-spin text-yellow-500" />
+                                    ) : <Smartphone size={14} />}
+                                    {isUploadingApk ? 'Uploading APK...' : (adminState.apkUrl ? 'Upload New APK File' : 'Select APK File')}
+                                  </div>
+                                </label>
+
+                                <div className="w-full flex flex-col gap-2 pt-4 border-t border-white/5">
+                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter text-center">Or enter Direct Link</p>
+                                  <div className="flex gap-2">
+                                    <input 
+                                      type="text"
+                                      placeholder="https://example.com/app.apk"
+                                      value={apkUrlInput}
+                                      onChange={(e) => setApkUrlInput(e.target.value)}
+                                      className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] text-white placeholder:text-slate-700 font-bold"
+                                    />
+                                    <button 
+                                      onClick={async () => {
+                                        if (apkUrlInput) {
+                                          await saveApkUrlDirectly(apkUrlInput);
+                                          setApkUrlInput('');
+                                        }
+                                      }}
+                                      className="bg-yellow-600/10 border border-yellow-500/20 px-4 py-2.5 rounded-xl text-[10px] font-black text-yellow-500 hover:bg-yellow-600 hover:text-white transition-all uppercase cursor-pointer"
+                                    >
+                                      Set
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
