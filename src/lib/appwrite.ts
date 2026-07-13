@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, OAuthProvider, Functions } from 'appwrite';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
 const ENDPOINT = 'https://api.sorat.in/v1';
@@ -23,6 +23,7 @@ export const client = new Client()
 export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
+export const functions = new Functions(client);
 
 // Helper function to convert base64 image strings into native Files for Appwrite Storage
 function base64ToFile(base64String: string, filename: string): File {
@@ -152,6 +153,43 @@ export const appwriteService = {
       console.log(`[Appwrite DB] Balance updated for user ${userId} to ₹${newBalance}`);
     } catch (error) {
       console.error('[Appwrite DB] Failed to update balance:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Updates balance of a specific user securely using Appwrite Functions bypass
+   */
+  updateUserBalanceViaFunction: async (userId: string, amount: number, actionType: 'add' | 'remove' | 'set', adminSecret: string): Promise<any> => {
+    try {
+      console.log(`[Appwrite Functions] Triggering bypass balance update for user ${userId} with action ${actionType}, amount ₹${amount}...`);
+      const execution = await functions.createExecution(
+        'timer-sync', // Function ID
+        JSON.stringify({
+          action: 'updateBalance',
+          userId,
+          amount,
+          actionType,
+          adminSecret
+        })
+      );
+      
+      const responseBody = execution.responseBody;
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(responseBody);
+      } catch {
+        parsedResponse = { error: responseBody };
+      }
+      
+      if (execution.status === 'failed' || (parsedResponse && parsedResponse.success === false)) {
+        throw new Error(parsedResponse.error || 'Appwrite Function execution failed');
+      }
+      
+      console.log('[Appwrite Functions] Secure bypass balance update success:', parsedResponse);
+      return parsedResponse;
+    } catch (error) {
+      console.error('[Appwrite Functions] Secure bypass balance update failed:', error);
       throw error;
     }
   },

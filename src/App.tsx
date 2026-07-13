@@ -3191,13 +3191,29 @@ export default function App() {
         
         addNotification(`Balance adjusted by ₹${amount} via Cloudflare Workers!`, 'win');
       } catch (cfErr: any) {
-        console.warn("Cloudflare API error adjusting balance, falling back", cfErr);
+        console.warn("Cloudflare API error adjusting balance, attempting Appwrite Function bypass...", cfErr);
         
-        // Appwrite Fallback
+        // Appwrite Function Secure Admin Bypass
         const currentSelectedUser = allUsers.find(u => u.id === uid);
         const currentBal = currentSelectedUser ? (currentSelectedUser.balance || 0) : 0;
         const targetBalance = currentBal + amount;
-        await appwriteService.updateUserBalance(uid, targetBalance);
+        
+        try {
+          await appwriteService.updateUserBalanceViaFunction(
+            uid,
+            Math.abs(amount),
+            amount >= 0 ? 'add' : 'remove',
+            'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
+          );
+          console.log("[Appwrite Functions] Secure bypass executed successfully!");
+          addNotification(`Balance adjusted by ₹${amount} via Appwrite Function bypass!`, 'win');
+        } catch (funcErr: any) {
+          console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
+          
+          // Appwrite Direct Fallback
+          await appwriteService.updateUserBalance(uid, targetBalance);
+          addNotification(`Balance adjusted by ₹${amount} (Direct DB Fallback)`, 'win');
+        }
         
         // Firebase Fallback
         await updateDoc(doc(db, 'users', uid), {
@@ -3206,8 +3222,6 @@ export default function App() {
         
         // Update local state immediately
         setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: targetBalance } : u));
-        
-        addNotification(`Balance adjusted by ₹${amount} (Fallback executed)`, 'win');
       }
     } catch (error) {
       handleAppError(error, OperationType.WRITE, path);
@@ -3228,18 +3242,31 @@ export default function App() {
         
         addNotification(`User balance updated to ₹${newBalance} via Cloudflare Workers!`, 'win');
       } catch (cfErr: any) {
-        console.warn("Cloudflare API error updating balance, falling back", cfErr);
+        console.warn("Cloudflare API error updating balance, attempting Appwrite Function bypass...", cfErr);
         
-        // Appwrite Fallback
-        await appwriteService.updateUserBalance(uid, newBalance);
+        // Appwrite Function Secure Admin Bypass
+        try {
+          await appwriteService.updateUserBalanceViaFunction(
+            uid,
+            newBalance,
+            'set',
+            'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
+          );
+          console.log("[Appwrite Functions] Secure bypass executed successfully!");
+          addNotification(`User balance set to ₹${newBalance} via Appwrite Function bypass!`, 'win');
+        } catch (funcErr: any) {
+          console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
+          
+          // Appwrite Direct Fallback
+          await appwriteService.updateUserBalance(uid, newBalance);
+          addNotification(`User balance set to ₹${newBalance} (Direct DB Fallback)`, 'win');
+        }
         
         // Firebase Fallback
         await updateDoc(doc(db, 'users', uid), { balance: newBalance });
         
         // Update local state immediately
         setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
-        
-        addNotification(`User balance updated to ₹${newBalance} (Fallback executed)`, 'win');
       }
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `users/${uid}`);

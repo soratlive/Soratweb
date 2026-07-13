@@ -21,6 +21,127 @@ module.exports = async (context) => {
 
   const databases = new Databases(client);
 
+  // Parse Request Body safely
+  let body = {};
+  if (req.body) {
+    if (typeof req.body === 'string') {
+      try {
+        body = JSON.parse(req.body);
+      } catch (e) {
+        log(`[Parser] Body is a string but not JSON: ${req.body}`);
+      }
+    } else if (typeof req.body === 'object') {
+      body = req.body;
+    }
+  }
+
+  // --- Secure Admin Action Bypass Mode ---
+  if (body && (body.action === 'updateBalance' || req.path === '/update-balance')) {
+    log(`[Bypass] Initiating Secure Admin Balance update bypass...`);
+    
+    // 1. Admin Secret Key verification
+    const adminSecret = body.adminSecret || req.headers['x-admin-secret'];
+    const expectedSecret = process.env.ADMIN_SECRET_KEY || 'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026';
+    
+    if (!adminSecret || adminSecret !== expectedSecret) {
+      error('[Auth] Unauthorized balance modification bypass attempt');
+      return res.json({ 
+        success: false, 
+        error: 'Unauthorized: Admin Secret Key is missing or invalid.' 
+      }, 403);
+    }
+
+    const { userId, amount, actionType } = body;
+    if (!userId || amount === undefined || !actionType) {
+      error('[Validation] Missing required parameters:', { userId, amount, actionType });
+      return res.json({
+        success: false,
+        error: 'Missing required parameters: userId, amount, and actionType must be defined.',
+        received: { userId, amount, actionType }
+      }, 400);
+    }
+
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount < 0) {
+      error('[Validation] Invalid amount:', amount);
+      return res.json({
+        success: false,
+        error: 'Invalid parameter: amount must be a non-negative number.',
+        receivedAmount: amount
+      }, 400);
+    }
+
+    if (actionType !== 'add' && actionType !== 'remove' && actionType !== 'set') {
+      error('[Validation] Invalid actionType:', actionType);
+      return res.json({
+        success: false,
+        error: 'Invalid parameter: actionType must be "add", "remove", or "set".',
+        receivedActionType: actionType
+      }, 400);
+    }
+
+    // Database configurations
+    const DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID || 'main';
+    const USERS_COLLECTION_ID = process.env.VITE_APPWRITE_USERS_COLLECTION_ID || 'users';
+
+    let currentBalance = 0;
+    let userDoc = null;
+
+    // Fetch user document from database
+    try {
+      log(`[Bypass Appwrite] Fetching user: ${userId}`);
+      userDoc = await databases.getDocument(DATABASE_ID, USERS_COLLECTION_ID, userId);
+      currentBalance = userDoc.balance !== undefined ? parseFloat(userDoc.balance) : 0;
+    } catch (err) {
+      error(`[Bypass Appwrite] Fetching user failed: ${err.message}`);
+      return res.json({
+        success: false,
+        error: `Failed to retrieve user document: ${err.message}`,
+        code: err.code || 500
+      }, err.code || 500);
+    }
+
+    // Calculate new balance
+    let newBalance = currentBalance;
+    if (actionType === 'add') {
+      newBalance = currentBalance + numericAmount;
+    } else if (actionType === 'remove') {
+      newBalance = Math.max(0, currentBalance - numericAmount);
+    } else if (actionType === 'set') {
+      newBalance = numericAmount;
+    }
+
+    // Update document in Appwrite
+    try {
+      log(`[Bypass Appwrite] Updating user ${userId} balance from ${currentBalance} to ${newBalance}`);
+      await databases.updateDocument(
+        DATABASE_ID,
+        USERS_COLLECTION_ID,
+        userId,
+        {
+          balance: newBalance
+        }
+      );
+      
+      log(`[Bypass Appwrite] Balance updated successfully in Appwrite.`);
+      return res.json({
+        success: true,
+        userId,
+        previousBalance: currentBalance,
+        newBalance,
+        actionType,
+        message: 'Balance successfully updated directly via Appwrite Function serverless bypass!'
+      });
+    } catch (updateErr) {
+      error(`[Bypass Appwrite] Balance update failed: ${updateErr.message}`);
+      return res.json({
+        success: false,
+        error: `Appwrite document update failed: ${updateErr.message}`,
+        code: updateErr.code || 500
+      }, updateErr.code || 500);
+    }
+  }
+
   const DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID || 'main';
   const COLLECTION_ID = process.env.VITE_APPWRITE_TIMER_COLLECTION_ID || 'timer_sync';
   const DOCUMENT_ID = 'current';
