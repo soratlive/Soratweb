@@ -469,21 +469,21 @@ const TimerDisplay = React.memo(({
       transition={{ 
         scale: isLowTime ? { repeat: Infinity, duration: 1, ease: "easeInOut" } : { duration: 0.3 }
       }}
-      className={`p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-col items-center justify-center gap-3 w-full text-center`}
+      className={`p-2 rounded-xl border transition-all duration-300 relative overflow-hidden ${cardBorder} ${bgGradient} flex flex-col items-center justify-center gap-1.5 w-full text-center`}
     >
       {/* Background Neon Glow Drops */}
       <div 
-        className="absolute -top-10 -left-10 w-20 h-20 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        className="absolute -top-6 -left-6 w-12 h-12 rounded-full blur-2xl pointer-events-none transition-all duration-500" 
         style={{ backgroundColor: glowColor }}
       />
       <div 
-        className="absolute -bottom-10 -right-10 w-20 h-20 rounded-full blur-3xl pointer-events-none transition-all duration-500" 
+        className="absolute -bottom-6 -right-6 w-12 h-12 rounded-full blur-2xl pointer-events-none transition-all duration-500" 
         style={{ backgroundColor: glowColor }}
       />
 
       {/* Hazard Flashing Strobe Line for Low/Locked state */}
       {(isLowTime || isBetsLocked) && (
-        <div className="absolute top-0 left-0 right-0 h-[2.5px] overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
           <motion.div 
             className="h-full bg-gradient-to-r from-transparent via-amber-500 to-transparent"
             animate={{ x: ['-100%', '100%'] }}
@@ -492,86 +492,60 @@ const TimerDisplay = React.memo(({
         </div>
       )}
 
-      {/* TOP: Stunning Futuristic Circular Progress Gauge - Medium Sized */}
-      <div className="relative shrink-0 flex items-center justify-center w-14 h-14">
+      {/* TOP: Compact Circular Progress Gauge */}
+      <div className="relative shrink-0 flex items-center justify-center w-11 h-11">
         {/* Animated outer tech circle */}
         <div className="absolute inset-0 rounded-full border border-white/5 animate-[spin_20s_linear_infinite]" />
         
         {/* Glowing aura ring */}
         <div 
-          className="absolute inset-1.5 rounded-full blur-sm opacity-40 transition-all duration-500"
-          style={{ boxShadow: `0 0 10px 2px ${glowColor}` }}
+          className="absolute inset-1 rounded-full blur-sm opacity-30 transition-all duration-500"
+          style={{ boxShadow: `0 0 6px 1px ${glowColor}` }}
         />
 
         {/* SVG Progress Ring */}
-        <svg className="w-12 h-12 transform -rotate-90">
-          <defs>
-            <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="text-slate-800" stopColor="currentColor" />
-              <stop offset="100%" className="text-slate-900" stopColor="currentColor" />
-            </linearGradient>
-          </defs>
-          
+        <svg className="w-9 h-9 transform -rotate-90">
           {/* Background guide track */}
           <circle
-            cx="24"
-            cy="24"
-            r="18"
+            cx="18"
+            cy="18"
+            r="14"
             className="stroke-slate-900/80 fill-none"
-            strokeWidth="2.5"
+            strokeWidth="2"
           />
 
           {/* Colorful Radial Active Progress */}
           <motion.circle
-            cx="24"
-            cy="24"
-            r="18"
+            cx="18"
+            cy="18"
+            r="14"
             className={`fill-none ${ringStroke} transition-all duration-300`}
-            strokeWidth="3.5"
-            strokeDasharray={113.1}
-            strokeDashoffset={113.1 - (percentage / 100) * 113.1}
+            strokeWidth="2.5"
+            strokeDasharray={87.96}
+            strokeDashoffset={87.96 - (percentage / 100) * 87.96}
             strokeLinecap="round"
           />
         </svg>
 
         {/* Centered Digital Counter display inside circular timer */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-[15px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[0.5px] leading-none`}>
+          <span className={`text-[12px] font-black tracking-tighter tabular-nums ${textColor} flex items-baseline gap-[0.5px] leading-none`}>
             {timer}
-            <span className="text-[8px] font-bold opacity-80">s</span>
-          </span>
-          <span className="text-[6px] text-slate-500 font-extrabold tracking-wider uppercase mt-0.5 leading-none">
-            ROUND
+            <span className="text-[7.5px] font-bold opacity-80">s</span>
           </span>
         </div>
-
-        {/* Digital Corner Tick Decors */}
-        <div className="absolute top-1 left-1 w-1 h-1 border-t border-l border-white/20" />
-        <div className="absolute top-1 right-1 w-1 h-1 border-t border-r border-white/20" />
-        <div className="absolute bottom-1 left-1 w-1 h-1 border-b border-l border-white/20" />
-        <div className="absolute bottom-1 right-1 w-1 h-1 border-b border-r border-white/20" />
       </div>
 
-      {/* BOTTOM: Sophisticated Cyber-Notch Text & Badges Panel */}
-      <div className="flex flex-col justify-center items-center gap-1.5 min-w-0 w-full text-center">
-        <div className="flex flex-col items-center gap-1 w-full">
-          {/* Quick Dynamic pill badge */}
-          <span className={`text-[7.5px] font-black tracking-wider uppercase px-2 py-0.5 rounded-lg border shadow-sm ${statusBadge}`}>
-            {phase === 'betting' && !isBetsLocked ? 'ACTIVE ROUND' : phase.toUpperCase()}
-          </span>
+      {/* BOTTOM: Compact Text & Instructions Panel */}
+      <div className="flex flex-col justify-center items-center gap-0.5 min-w-0 w-full text-center">
+        {/* Header Tag / State title */}
+        <span className={`text-[9px] font-black uppercase tracking-wider text-white flex items-center justify-center gap-1 w-full`}>
+          <span className="animate-pulse shrink-0">{statusIcon}</span>
+          <span className="truncate text-center">{titleText}</span>
+        </span>
 
-          {/* Header Tag / State title */}
-          <span className={`text-[11px] font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 w-full`}>
-            <span className="animate-pulse shrink-0">{statusIcon}</span>
-            <span className="truncate text-center">{titleText}</span>
-          </span>
-        </div>
-
-        {/* Decorative Divider notch */}
-        <div className="h-[1px] w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent my-0.5" />
-
-        {/* Description line */}
-        <div className="text-[8.5px] text-slate-400 font-bold tracking-wide text-center uppercase leading-relaxed max-w-full break-words">
+        {/* Description / Instructions line */}
+        <div className="text-[7.5px] text-slate-400 font-extrabold tracking-normal text-center uppercase leading-tight max-w-full break-words">
           {subtitleText}
         </div>
       </div>
@@ -3453,7 +3427,7 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <div className={`w-full max-w-[450px] landscape:max-w-[1000px] mx-auto h-full border-x ${isDemoMode ? 'border-yellow-900/30 bg-[#292212]' : 'border-slate-800 bg-slate-950'} relative flex flex-col landscape:flex-row transition-colors duration-1000 uppercase overflow-hidden`}>
+      <div className={`w-full h-full ${isDemoMode ? 'bg-[#292212]' : 'bg-slate-950'} relative flex flex-col landscape:flex-row transition-colors duration-1000 uppercase overflow-hidden`}>
         
         {/* Left Side Controls & Navigation Panel */}
         <div className="contents landscape:flex landscape:flex-col landscape:w-[260px] landscape:h-full landscape:border-r landscape:border-slate-800/40 shrink-0 landscape:overflow-y-auto landscape:custom-scrollbar">
@@ -3698,7 +3672,7 @@ export default function App() {
         {/* Main Grid */}
         <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full flex flex-col gap-2">
           
-          <div className="grid grid-cols-4 landscape:grid-cols-6 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
+          <div className="grid grid-cols-4 landscape:grid-cols-4 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
