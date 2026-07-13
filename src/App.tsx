@@ -2858,8 +2858,12 @@ export default function App() {
       
       addNotification("Uploading screenshot to Appwrite Storage...", "info");
       
-      // Upload using Appwrite Storage bucket
-      const finalScreenshotUrl = await appwriteService.uploadScreenshot(screenshotBase64);
+      // Get the native File object via document.getElementById('file') as requested
+      const fileInput = document.getElementById('file') as HTMLInputElement;
+      const nativeFile = fileInput?.files?.[0];
+      
+      // Pass the File object or base64 fallback to Appwrite Storage
+      const finalScreenshotUrl = await appwriteService.uploadScreenshot(nativeFile || screenshotBase64);
       const proofId = Math.random().toString(36).substring(2, 15);
       
       // Save to Appwrite Database collection payment_proofs
@@ -2869,6 +2873,25 @@ export default function App() {
         screenshot_url: finalScreenshotUrl,
         amount: amt
       });
+
+      // Also create/update Firebase/D1 depositRequests document with screenshot_url field
+      try {
+        await setDoc(doc(db, 'depositRequests', proofId), {
+          id: proofId,
+          userId: currentUser.uid,
+          email: currentUser.email || 'unknown@user.com',
+          amount: amt,
+          method: selectedMethod || 'qr',
+          transactionId: transactionId || proofId,
+          screenshotUrl: finalScreenshotUrl,
+          screenshot_url: finalScreenshotUrl, // Ensure both CamelCase and snake_case are saved
+          status: 'pending',
+          timestamp: Date.now()
+        });
+        console.log('[Firestore DB] Deposit request written with screenshot_url successfully.');
+      } catch (dbErr) {
+        console.warn('[Firestore DB] Failed to dual-write to depositRequests, ignoring fallback:', dbErr);
+      }
 
       addNotification("Deposit request submitted successfully!", 'win');
       setIsDepositOpen(false);
@@ -7285,6 +7308,7 @@ $$;`}
                               <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Upload Screenshot proof</span>
                               <label className="w-full aspect-video bg-slate-900 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center p-3 cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all relative overflow-hidden">
                                 <input 
+                                  id="file"
                                   type="file" accept="image/*" className="hidden"
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
@@ -7880,6 +7904,7 @@ $$;`}
                          </label>
                          <label className="w-full aspect-[4/3] bg-slate-950 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center p-4 cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group relative overflow-hidden">
                             <input 
+                              id="file"
                               type="file" accept="image/*" className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];

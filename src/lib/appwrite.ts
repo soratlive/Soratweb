@@ -197,11 +197,31 @@ export const appwriteService = {
   /**
    * Upload screenshot proof image to Appwrite screenshots Bucket
    */
-  uploadScreenshot: async (base64Image: string): Promise<string> => {
+  uploadScreenshot: async (fileOrBase64: File | string): Promise<string> => {
     try {
       console.log('[Appwrite Storage] Uploading screenshot to bucket...');
       const fileId = ID.unique();
-      const file = base64ToFile(base64Image, `proof_${Date.now()}.png`);
+      
+      let file: File;
+      if (fileOrBase64 instanceof File) {
+        file = fileOrBase64;
+        console.log('[Appwrite Storage] Using native File object directly for upload:', file.name);
+      } else if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
+        file = base64ToFile(fileOrBase64, `proof_${Date.now()}.png`);
+        console.log('[Appwrite Storage] Converted base64 string to native File object');
+      } else {
+        // Attempt to find via DOM ID 'file' as requested
+        const fileInput = typeof document !== 'undefined' ? (document.getElementById('file') as HTMLInputElement) : null;
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+          file = fileInput.files[0];
+          console.log('[Appwrite Storage] Found file input via DOM document.getElementById("file"):', file.name);
+        } else if (typeof fileOrBase64 === 'string') {
+          // Standard string representation
+          file = base64ToFile(fileOrBase64, `proof_${Date.now()}.png`);
+        } else {
+          throw new Error('No valid File object, base64 string, or input#file element with a file was found.');
+        }
+      }
       
       const response = await storage.createFile(
         SCREENSHOTS_BUCKET_ID,
@@ -209,12 +229,12 @@ export const appwriteService = {
         file
       );
 
-      // Construct direct URL to view/download uploaded screenshot file
-      const directUrl = `${ENDPOINT}/storage/buckets/${SCREENSHOTS_BUCKET_ID}/files/${response.$id}/view?project=${PROJECT_ID}`;
-      console.log('[Appwrite Storage] Screenshot uploaded successfully. URL:', directUrl);
-      return directUrl;
+      // Generate File URL using storage.getFileView as explicitly requested
+      const fileViewUrl = storage.getFileView(SCREENSHOTS_BUCKET_ID, response.$id).toString();
+      console.log('[Appwrite Storage] Screenshot uploaded successfully via getFileView. URL:', fileViewUrl);
+      return fileViewUrl;
     } catch (error) {
-      console.error('[Appwrite Storage] Upload failed, falling back to mock hosting:', error);
+      console.error('[Appwrite Storage] Upload failed:', error);
       throw error;
     }
   },
