@@ -12,7 +12,7 @@ export const VITE_APP_URL = (import.meta as any).env?.VITE_APP_URL || 'https://p
 export const DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || 'main';
 export const USERS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_USERS_COLLECTION_ID || 'users';
 export const PROOFS_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_PROOFS_COLLECTION_ID || 'payment_proofs';
-export const SCREENSHOTS_BUCKET_ID = (import.meta as any).env?.VITE_APPWRITE_BUCKET_ID || 'screenshots';
+export const SCREENSHOTS_BUCKET_ID = (import.meta as any).env?.VITE_APPWRITE_BUCKET_ID || '6a4e72f90022e90bc15b';
 export const TIMER_COLLECTION_ID = (import.meta as any).env?.VITE_APPWRITE_TIMER_COLLECTION_ID || 'timer_sync';
 
 // Initialize the Appwrite Client explicitly with custom domain and project ID
@@ -197,7 +197,7 @@ export const appwriteService = {
   /**
    * Upload screenshot proof image to Appwrite screenshots Bucket
    */
-  uploadScreenshot: async (fileOrBase64: File | string): Promise<string> => {
+  uploadScreenshot: async (fileOrBase64: File | string): Promise<{ fileId: string; url: string }> => {
     try {
       console.log('[Appwrite Storage] Uploading screenshot to bucket...');
       const fileId = ID.unique();
@@ -232,7 +232,7 @@ export const appwriteService = {
       // Generate File URL using storage.getFileView as explicitly requested
       const fileViewUrl = storage.getFileView(SCREENSHOTS_BUCKET_ID, response.$id).toString();
       console.log('[Appwrite Storage] Screenshot uploaded successfully via getFileView. URL:', fileViewUrl);
-      return fileViewUrl;
+      return { fileId: response.$id, url: fileViewUrl };
     } catch (error) {
       console.error('[Appwrite Storage] Upload failed:', error);
       throw error;

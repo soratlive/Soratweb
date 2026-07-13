@@ -1675,29 +1675,105 @@ export default function App() {
     // 2. Clear withdrawals for Appwrite compatibility
     setWithdrawalRequests([]);
 
-    // 3. Fetch payment proofs from Appwrite DB
+    // 3. Fetch payment proofs and deposits from both Appwrite DB & Firestore collections
     try {
-      const d1Proofs = await appwriteService.getPaymentProofs();
-      if (d1Proofs && Array.isArray(d1Proofs)) {
-        const mappedProofs = d1Proofs.map(doc => ({
-          id: doc.$id,
-          user_email: doc.user_email || 'unknown@user.com',
-          screenshot_url: doc.screenshot_url || '',
-          amount: doc.amount || 0,
-          status: doc.status || 'pending',
-          created_at: doc.created_at || new Date().toISOString()
-        }));
-        setPaymentProofs(mappedProofs);
-        setDepositRequests(mappedProofs as any); // Match shapes
-        localStorage.setItem('cached_admin_payment_proofs', JSON.stringify(mappedProofs));
+      console.log('[Admin Sync] Synchronizing and merging deposits from Appwrite & Firestore...');
+      
+      let appwriteProofs: any[] = [];
+      try {
+        appwriteProofs = await appwriteService.getPaymentProofs();
+      } catch (err) {
+        console.warn("[Admin Sync] Appwrite payment proofs fetch failed:", err);
       }
+
+      let firestoreDepositRequests: any[] = [];
+      try {
+        const snap = await getDocs(collection(db, 'depositRequests'));
+        firestoreDepositRequests = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      } catch (err) {
+        console.warn("[Admin Sync] Firestore depositRequests fetch failed:", err);
+      }
+
+      let firestoreDeposits: any[] = [];
+      try {
+        const snap = await getDocs(collection(db, 'deposits'));
+        firestoreDeposits = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      } catch (err) {
+        console.warn("[Admin Sync] Firestore deposits fetch failed:", err);
+      }
+
+      // Merge by ID to combine Appwrite files and Firestore fields perfectly
+      const mergedMap = new Map<string, any>();
+
+      // A. Populate from Firestore 'deposits'
+      for (const d of firestoreDeposits) {
+        mergedMap.set(d.id, {
+          id: d.id,
+          userId: d.userId || d.user_id || 'unknown',
+          email: d.email || d.user_email || 'unknown@user.com',
+          amount: d.amount || 0,
+          method: d.method || 'qr',
+          transactionId: d.transactionId || d.transaction_id || d.id,
+          screenshotUrl: d.screenshotUrl || d.screenshot_url || '',
+          screenshot_url: d.screenshot_url || d.screenshotUrl || '',
+          status: d.status || 'pending',
+          timestamp: d.timestamp || (d.created_at ? new Date(d.created_at).getTime() : Date.now()),
+          userBalanceBefore: d.userBalanceBefore || 0
+        });
+      }
+
+      // B. Merge or override from Firestore 'depositRequests'
+      for (const d of firestoreDepositRequests) {
+        const existing = mergedMap.get(d.id) || {};
+        mergedMap.set(d.id, {
+          ...existing,
+          id: d.id,
+          userId: d.userId || d.user_id || existing.userId || 'unknown',
+          email: d.email || d.user_email || existing.email || 'unknown@user.com',
+          amount: d.amount !== undefined ? d.amount : (existing.amount || 0),
+          method: d.method || existing.method || 'qr',
+          transactionId: d.transactionId || d.transaction_id || existing.transactionId || d.id,
+          screenshotUrl: d.screenshotUrl || d.screenshot_url || existing.screenshotUrl || '',
+          screenshot_url: d.screenshot_url || d.screenshotUrl || existing.screenshot_url || '',
+          status: d.status || existing.status || 'pending',
+          timestamp: d.timestamp || existing.timestamp || Date.now(),
+          userBalanceBefore: d.userBalanceBefore || existing.userBalanceBefore || 0
+        });
+      }
+
+      // C. Merge or override from Appwrite payment proofs
+      for (const doc of appwriteProofs) {
+        const existing = mergedMap.get(doc.$id) || {};
+        mergedMap.set(doc.$id, {
+          id: doc.$id,
+          userId: doc.userId || doc.user_id || existing.userId || 'unknown',
+          email: doc.user_email || doc.email || existing.email || 'unknown@user.com',
+          amount: doc.amount || existing.amount || 0,
+          method: doc.method || existing.method || 'qr',
+          transactionId: doc.transaction_id || doc.transactionId || existing.transactionId || doc.$id,
+          screenshotUrl: doc.screenshot_url || doc.screenshotUrl || existing.screenshotUrl || '',
+          screenshot_url: doc.screenshot_url || doc.screenshotUrl || existing.screenshot_url || '',
+          status: doc.status || existing.status || 'pending',
+          timestamp: doc.timestamp || existing.timestamp || (doc.created_at ? new Date(doc.created_at).getTime() : Date.now()),
+          userBalanceBefore: doc.userBalanceBefore || existing.userBalanceBefore || 0,
+          created_at: doc.created_at || existing.created_at || new Date().toISOString()
+        });
+      }
+
+      const finalMerged = Array.from(mergedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+      
+      console.log(`[Admin Sync] Successfully synchronized and merged ${finalMerged.length} deposit requests.`);
+      setPaymentProofs(finalMerged);
+      setDepositRequests(finalMerged);
+      localStorage.setItem('cached_admin_payment_proofs', JSON.stringify(finalMerged));
     } catch (error) {
-      console.warn("Appwrite payment proofs fetch failed, using cached data if available", error);
+      console.warn("Dual database deposit fetch sync failed, using cached data if available", error);
       const cached = localStorage.getItem('cached_admin_payment_proofs');
       if (cached) {
         try {
-          setPaymentProofs(JSON.parse(cached));
-          setDepositRequests(JSON.parse(cached));
+          const parsed = JSON.parse(cached);
+          setPaymentProofs(parsed);
+          setDepositRequests(parsed);
         } catch (_) {}
       } else {
         setPaymentProofs([]);
@@ -2863,34 +2939,56 @@ export default function App() {
       const nativeFile = fileInput?.files?.[0];
       
       // Pass the File object or base64 fallback to Appwrite Storage
-      const finalScreenshotUrl = await appwriteService.uploadScreenshot(nativeFile || screenshotBase64);
-      const proofId = Math.random().toString(36).substring(2, 15);
+      const uploadResult = await appwriteService.uploadScreenshot(nativeFile || screenshotBase64);
+      const finalScreenshotUrl = uploadResult.url;
+      const fileId = uploadResult.fileId;
       
-      // Save to Appwrite Database collection payment_proofs
+      console.log(`[Appwrite Storage] Screenshot uploaded. fileId: ${fileId}, URL: ${finalScreenshotUrl}`);
+
+      // Save to Appwrite Database collection payment_proofs using fileId
       await appwriteService.createPaymentProof({
-        id: proofId,
+        id: fileId,
         user_email: currentUser.email || 'unknown@user.com',
         screenshot_url: finalScreenshotUrl,
         amount: amt
       });
 
-      // Also create/update Firebase/D1 depositRequests document with screenshot_url field
+      // Also create/update Firebase/D1 depositRequests document with fileId
       try {
-        await setDoc(doc(db, 'depositRequests', proofId), {
-          id: proofId,
+        await setDoc(doc(db, 'depositRequests', fileId), {
+          id: fileId,
           userId: currentUser.uid,
           email: currentUser.email || 'unknown@user.com',
           amount: amt,
           method: selectedMethod || 'qr',
-          transactionId: transactionId || proofId,
+          transactionId: transactionId || fileId,
           screenshotUrl: finalScreenshotUrl,
           screenshot_url: finalScreenshotUrl, // Ensure both CamelCase and snake_case are saved
           status: 'pending',
           timestamp: Date.now()
         });
-        console.log('[Firestore DB] Deposit request written with screenshot_url successfully.');
+        console.log('[Firestore DB] Deposit request written to depositRequests with screenshotUrl successfully.');
       } catch (dbErr) {
         console.warn('[Firestore DB] Failed to dual-write to depositRequests, ignoring fallback:', dbErr);
+      }
+
+      // Also create/update Firebase/D1 deposits document with fileId as requested
+      try {
+        await setDoc(doc(db, 'deposits', fileId), {
+          id: fileId,
+          userId: currentUser.uid,
+          email: currentUser.email || 'unknown@user.com',
+          amount: amt,
+          method: selectedMethod || 'qr',
+          transactionId: transactionId || fileId,
+          screenshotUrl: finalScreenshotUrl,
+          screenshot_url: finalScreenshotUrl,
+          status: 'pending',
+          timestamp: Date.now()
+        });
+        console.log('[Firestore DB] Deposit request written to deposits with screenshotUrl successfully.');
+      } catch (dbErr) {
+        console.warn('[Firestore DB] Failed to dual-write to deposits, ignoring fallback:', dbErr);
       }
 
       addNotification("Deposit request submitted successfully!", 'win');
@@ -2910,17 +3008,36 @@ export default function App() {
 
   const handleApproveDeposit = async (requestId: string, userId: string, amount: number) => {
     try {
+      // 1. Try to approve in Appwrite DB
+      try {
+        await appwriteService.updatePaymentProofStatus(requestId, 'approved');
+        console.log('[Appwrite DB] Approved deposit successfully');
+      } catch (appwriteErr) {
+        console.warn('[Appwrite DB] Failed to approve deposit or user already approved:', appwriteErr);
+      }
+
+      // 2. Try to update Firestore 'deposits' status
+      try {
+        await updateDoc(doc(db, 'deposits', requestId), {
+          status: 'approved'
+        });
+        console.log('[Firestore DB] Approved in deposits collection successfully');
+      } catch (err) {
+        console.warn('[Firestore DB] Failed to update deposits status:', err);
+      }
+
+      // 3. Try Cloudflare Workers or standard fallback
       try {
         await cloudflareAPI.updateDepositStatus(requestId, 'approved', { userId, amount });
-        addNotification(`Deposit of ₹${amount} approved via Cloudflare Workers!`, 'win');
+        addNotification(`Deposit of ₹${amount} approved!`, 'win');
       } catch (cfErr) {
-        console.warn("Cloudflare API error approving deposit, falling back", cfErr);
-        // 1. Update status
+        console.warn("Cloudflare API error approving deposit, falling back to direct Firestore update", cfErr);
+        // 1. Update status in depositRequests
         await updateDoc(doc(db, 'depositRequests', requestId), {
           status: 'approved'
         });
         
-        // 2. Add balance using atomic increment
+        // 2. Add balance using atomic increment in Firestore
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           balance: increment(amount)
@@ -2928,6 +3045,9 @@ export default function App() {
         
         addNotification(`Deposit of ₹${amount} approved! Balance added to user.`, 'win');
       }
+      
+      // Refresh admin data synchronously
+      fetchAdminData(true);
     } catch (error) {
       handleAppError(error, OperationType.WRITE, `depositRequests/${requestId}`);
     }
@@ -2935,16 +3055,38 @@ export default function App() {
 
   const handleRejectDeposit = async (requestId: string) => {
     try {
+      // 1. Try to reject in Appwrite DB
+      try {
+        await appwriteService.updatePaymentProofStatus(requestId, 'rejected');
+        console.log('[Appwrite DB] Rejected deposit successfully');
+      } catch (appwriteErr) {
+        console.warn('[Appwrite DB] Failed to reject deposit in Appwrite:', appwriteErr);
+      }
+
+      // 2. Try to update Firestore 'deposits' status
+      try {
+        await updateDoc(doc(db, 'deposits', requestId), {
+          status: 'rejected'
+        });
+        console.log('[Firestore DB] Rejected in deposits collection successfully');
+      } catch (err) {
+        console.warn('[Firestore DB] Failed to update deposits status:', err);
+      }
+
+      // 3. Try Cloudflare Workers or standard fallback
       try {
         await cloudflareAPI.updateDepositStatus(requestId, 'rejected');
-        addNotification("Deposit request rejected via Cloudflare Workers!", 'info');
+        addNotification("Deposit request rejected!", 'info');
       } catch (cfErr) {
-        console.warn("Cloudflare API error rejecting deposit, falling back", cfErr);
+        console.warn("Cloudflare API error rejecting deposit, falling back to direct Firestore update", cfErr);
         await updateDoc(doc(db, 'depositRequests', requestId), {
           status: 'rejected'
         });
         addNotification("Deposit request rejected", 'info');
       }
+      
+      // Refresh admin data synchronously
+      fetchAdminData(true);
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `depositRequests/${requestId}`);
     }
