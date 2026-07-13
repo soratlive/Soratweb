@@ -3185,13 +3185,29 @@ export default function App() {
     try {
       try {
         await cloudflareAPI.updateUser(uid, { balanceAdjustment: amount });
+        
+        // Update local state immediately
+        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: (u.balance || 0) + amount } : u));
+        
         addNotification(`Balance adjusted by ₹${amount} via Cloudflare Workers!`, 'win');
-      } catch (cfErr) {
+      } catch (cfErr: any) {
         console.warn("Cloudflare API error adjusting balance, falling back", cfErr);
+        
+        // Appwrite Fallback
+        const currentSelectedUser = allUsers.find(u => u.id === uid);
+        const currentBal = currentSelectedUser ? (currentSelectedUser.balance || 0) : 0;
+        const targetBalance = currentBal + amount;
+        await appwriteService.updateUserBalance(uid, targetBalance);
+        
+        // Firebase Fallback
         await updateDoc(doc(db, 'users', uid), {
           balance: increment(amount)
         });
-        addNotification(`Balance adjusted by ₹${amount}`, 'win');
+        
+        // Update local state immediately
+        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: targetBalance } : u));
+        
+        addNotification(`Balance adjusted by ₹${amount} (Fallback executed)`, 'win');
       }
     } catch (error) {
       handleAppError(error, OperationType.WRITE, path);
@@ -3206,11 +3222,24 @@ export default function App() {
     try {
       try {
         await cloudflareAPI.updateUser(uid, { balance: newBalance });
+        
+        // Update local state immediately
+        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
+        
         addNotification(`User balance updated to ₹${newBalance} via Cloudflare Workers!`, 'win');
-      } catch (cfErr) {
+      } catch (cfErr: any) {
         console.warn("Cloudflare API error updating balance, falling back", cfErr);
+        
+        // Appwrite Fallback
+        await appwriteService.updateUserBalance(uid, newBalance);
+        
+        // Firebase Fallback
         await updateDoc(doc(db, 'users', uid), { balance: newBalance });
-        addNotification(`User balance updated to ₹${newBalance}`, 'win');
+        
+        // Update local state immediately
+        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
+        
+        addNotification(`User balance updated to ₹${newBalance} (Fallback executed)`, 'win');
       }
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `users/${uid}`);

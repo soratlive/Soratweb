@@ -17,6 +17,7 @@ export interface Env {
   // D1 Database Binding configured in wrangler.toml
   DB: D1Database;
   JWT_SECRET?: string;
+  APPWRITE_API_KEY?: string;
 }
 
 // Helper to parse base64 JWT payload safely at the Edge
@@ -206,10 +207,25 @@ export default {
     const method = request.method;
 
     // --- Elegant CORS Headers for Cross-Origin API access ---
+    const origin = request.headers.get('Origin') || '';
+    const allowedOrigins = [
+      'https://play.sorat.in',
+      'https://sorat.live',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ];
+    let allowOrigin = '*';
+    if (origin) {
+      if (allowedOrigins.includes(origin) || origin.includes('sorat.in') || origin.includes('sorat.live') || origin.includes('run.app') || origin.includes('localhost')) {
+        allowOrigin = origin;
+      }
+    }
+
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
     };
 
     // Handle CORS preflight options request
@@ -374,6 +390,204 @@ export default {
 
         return new Response(JSON.stringify({ success: true, message: 'User created successfully inside D1 database!' }), {
           status: 201,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Route: POST /api/admin/update-balance - Admin balance modification (add, remove, set) synced with Appwrite and D1
+      if (url.pathname === '/api/admin/update-balance' && method === 'POST') {
+        // 1. Admin Role Verification: Validate active admin session token
+        const isAdmin = await verifyAdmin(request, env);
+        if (!isAdmin) {
+          console.error('[Worker Auth] Unauthorized balance modification attempt');
+          return new Response(JSON.stringify({ error: 'Unauthorized: Admin privileges required' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // 2. Data parsing block
+        let body: any;
+        try {
+          const bodyText = await request.text();
+          body = JSON.parse(bodyText);
+        } catch (parseErr: any) {
+          console.error('[Worker Parser] Failed to parse request body as JSON:', parseErr.message);
+          return new Response(JSON.stringify({ 
+            error: 'Failed to parse JSON body from request',
+            details: parseErr.message 
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // 3. Parameters validation (userId, amount, action)
+        const { userId, amount, action } = body;
+        if (userId === undefined || amount === undefined || action === undefined) {
+          console.error('[Worker Validation] Missing required parameters:', { userId, amount, action });
+          return new Response(JSON.stringify({ 
+            error: 'Missing required parameters: userId, amount, and action must be defined.',
+            received: { userId, amount, action }
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const numericAmount = parseFloat(amount);
+        if (isNaN(numericAmount) || numericAmount < 0) {
+          console.error('[Worker Validation] Invalid amount parameter:', amount);
+          return new Response(JSON.stringify({ 
+            error: 'Invalid parameter: amount must be a non-negative number.',
+            receivedAmount: amount 
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (action !== 'add' && action !== 'remove' && action !== 'set') {
+          console.error('[Worker Validation] Invalid action parameter:', action);
+          return new Response(JSON.stringify({ 
+            error: 'Invalid parameter: action must be either "add", "remove", or "set".',
+            receivedAction: action 
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // 4. Appwrite Database Execution and Error Logging
+        const appwriteEndpoint = 'https://api.sorat.in/v1';
+        const projectId = '6a4e644b001268fb3a25';
+        const databaseId = 'main';
+        const collectionId = 'users';
+
+        // Prepare Appwrite headers
+        const appwriteHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Appwrite-Project': projectId,
+        };
+
+        if (env.APPWRITE_API_KEY) {
+          appwriteHeaders['X-Appwrite-Key'] = env.APPWRITE_API_KEY;
+        } else {
+          const authHeader = request.headers.get('Authorization');
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            appwriteHeaders['X-Appwrite-JWT'] = authHeader.substring(7);
+          }
+        }
+
+        let currentBalance = 0;
+        let getResponse: Response;
+
+        // Fetch current document first
+        try {
+          console.log(`[Worker Appwrite] GET User Document: ${userId}`);
+          getResponse = await fetch(
+            `${appwriteEndpoint}/databases/${databaseId}/collections/${collectionId}/documents/${userId}`,
+            {
+              method: 'GET',
+              headers: appwriteHeaders
+            }
+          );
+
+          if (!getResponse.ok) {
+            const errText = await getResponse.text();
+            console.error(`[Worker Appwrite] GET User failed with status ${getResponse.status}:`, errText);
+            return new Response(JSON.stringify({
+              error: `Appwrite document retrieval failed with status ${getResponse.status}`,
+              status: getResponse.status,
+              details: errText
+            }), {
+              status: getResponse.status === 401 || getResponse.status === 404 ? getResponse.status : 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const userDoc: any = await getResponse.json();
+          currentBalance = userDoc.balance !== undefined ? parseFloat(userDoc.balance) : 0;
+        } catch (err: any) {
+          console.error('[Worker Appwrite] GET Request Try-Catch exception:', err.message);
+          return new Response(JSON.stringify({
+            error: 'Exception occurred while fetching document from Appwrite',
+            details: err.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Calculate new balance
+        let newBalance = currentBalance;
+        if (action === 'add') {
+          newBalance = currentBalance + numericAmount;
+        } else if (action === 'remove') {
+          newBalance = Math.max(0, currentBalance - numericAmount);
+        } else if (action === 'set') {
+          newBalance = numericAmount;
+        }
+
+        // Update document in Appwrite
+        let updateResponse: Response;
+        try {
+          console.log(`[Worker Appwrite] PATCH User Document: ${userId} with balance: ${newBalance}`);
+          updateResponse = await fetch(
+            `${appwriteEndpoint}/databases/${databaseId}/collections/${collectionId}/documents/${userId}`,
+            {
+              method: 'PATCH',
+              headers: appwriteHeaders,
+              body: JSON.stringify({
+                data: {
+                  balance: newBalance
+                }
+              })
+            }
+          );
+
+          if (!updateResponse.ok) {
+            const errText = await updateResponse.text();
+            console.error(`[Worker Appwrite] PATCH User failed with status ${updateResponse.status}:`, errText);
+            return new Response(JSON.stringify({
+              error: `Appwrite document update failed with status ${updateResponse.status}`,
+              status: updateResponse.status,
+              details: errText
+            }), {
+              status: updateResponse.status === 401 || updateResponse.status === 404 ? updateResponse.status : 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+        } catch (err: any) {
+          console.error('[Worker Appwrite] PATCH Request Try-Catch exception:', err.message);
+          return new Response(JSON.stringify({
+            error: 'Exception occurred while updating document in Appwrite',
+            details: err.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // 5. Synchronize with D1 database
+        try {
+          await env.DB.prepare('UPDATE users SET balance = ? WHERE id = ?')
+            .bind(newBalance, userId)
+            .run();
+          console.log(`[Worker D1] Synchronized user ${userId} balance in D1 to ${newBalance}`);
+        } catch (d1Err: any) {
+          console.error('[Worker D1] Failed to sync user balance in D1 database:', d1Err.message);
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          userId,
+          previousBalance: currentBalance,
+          newBalance,
+          action,
+          message: 'Balance successfully updated in both Appwrite and D1 databases!'
+        }), {
+          status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
