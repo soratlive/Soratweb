@@ -3891,9 +3891,9 @@ export default function App() {
         </div>
 
         {/* Main Grid */}
-        <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-hidden custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full flex flex-col gap-2">
+        <main className="flex-1 px-2.5 py-2 portrait:px-2 portrait:py-1.5 overflow-y-auto portrait:overflow-y-auto custom-scrollbar min-h-0 bg-slate-950/20 landscape:h-full flex flex-col gap-2">
           
-          <div className="grid grid-cols-4 landscape:grid-cols-4 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
+          <div className="grid grid-cols-3 sm:grid-cols-4 portrait:grid-cols-3 landscape:grid-cols-4 gap-1.5 portrait:gap-1.5 sm:gap-3 landscape:gap-1.5 mb-2 portrait:mb-0">
             {GAME_SLOTS.map((slot) => (
               <SlotCard
                 key={slot.id}
