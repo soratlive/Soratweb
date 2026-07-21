@@ -80,6 +80,7 @@ export interface DepositRequest {
   userBalanceBefore?: number;
   status: 'pending' | 'approved' | 'rejected';
   timestamp: number;
+  scannedDetails?: any;
 }
 
 export interface Notification {
