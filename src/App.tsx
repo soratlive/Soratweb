@@ -1778,10 +1778,15 @@ export default function App() {
     
     // 1. Fetch Users from Appwrite DB & Firestore
     try {
-      const res = await databases.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [Query.limit(100)]);
-      const appwriteUsers = res.documents.map(doc => ({ id: doc.$id, ...doc }));
+      let appwriteUsers: any[] = [];
+      try {
+        const res = await databases.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [Query.limit(100)]);
+        appwriteUsers = res.documents.map(doc => ({ id: doc.$id, ...doc }));
+      } catch (err) {
+        console.warn("Appwrite users fetch failed:", err);
+      }
       
-      // Fetch Firestore users to merge lastLogin
+      // Fetch Firestore users to merge lastLogin and load users stored exclusively in Firestore
       let firestoreUsers: any[] = [];
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
@@ -1790,20 +1795,61 @@ export default function App() {
         console.warn("Firestore users fetch failed:", err);
       }
 
-      // Merge lastLogin, lastLoginPlatform from Firestore into Appwrite users
-      const mergedUsers = appwriteUsers.map(au => {
-        const fu = firestoreUsers.find(u => u.id === au.id);
-        return {
+      // Merge users by unique id
+      const userMap = new Map<string, any>();
+
+      appwriteUsers.forEach(au => {
+        userMap.set(au.id, {
           ...au,
-          lastLogin: fu?.lastLogin || null,
-          lastLoginPlatform: fu?.lastLoginPlatform || null
-        };
+          lastLogin: null,
+          lastLoginPlatform: null,
+        });
       });
+
+      firestoreUsers.forEach(fu => {
+        const existing = userMap.get(fu.id);
+        if (existing) {
+          userMap.set(fu.id, {
+            ...existing,
+            ...fu,
+            balance: fu.balance !== undefined ? fu.balance : existing.balance,
+            role: fu.role || existing.role || 'user',
+            displayName: fu.displayName || fu.name || existing.displayName || existing.name,
+            email: fu.email || existing.email,
+            lastLogin: fu.lastLogin || existing.lastLogin,
+            lastLoginPlatform: fu.lastLoginPlatform || existing.lastLoginPlatform,
+          });
+        } else {
+          userMap.set(fu.id, {
+            id: fu.id,
+            ...fu,
+            role: fu.role || 'user',
+            balance: fu.balance !== undefined ? fu.balance : 0,
+            displayName: fu.displayName || fu.name || 'Unregistered Player',
+            email: fu.email || '',
+            lastLogin: fu.lastLogin || null,
+            lastLoginPlatform: fu.lastLoginPlatform || null,
+          });
+        }
+      });
+
+      const mergedUsers = Array.from(userMap.values());
+
+      if (mergedUsers.length === 0) {
+        mergedUsers.push({
+          id: currentUser?.uid || 'local-preview-id',
+          email: currentUser?.email || 'admin@sorat.live',
+          displayName: currentUser?.displayName || 'Admin',
+          role: 'admin',
+          balance: 10000,
+          mobile: '9049583034'
+        });
+      }
 
       setAllUsers(mergedUsers);
       localStorage.setItem('cached_admin_users', JSON.stringify(mergedUsers));
     } catch (error) {
-      console.warn("Appwrite Users fetch failed, using local offline cache", error);
+      console.warn("Users fetch failed, using local offline cache", error);
       const cached = localStorage.getItem('cached_admin_users');
       if (cached) {
         try {
