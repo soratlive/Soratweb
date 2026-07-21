@@ -75,6 +75,7 @@ export interface DepositRequest {
   method: string;
   transactionId?: string;
   screenshotUrl?: string;
+  screenshot_url?: string;
   dealerId?: string;
   userBalanceBefore?: number;
   status: 'pending' | 'approved' | 'rejected';
