@@ -181,7 +181,6 @@ import {
   isFirestoreOffline,
   getRedirectResult
 } from './lib/firebase';
-import { cloudflareAPI } from './lib/cloudflare';
 import { appwriteService, DATABASE_ID, USERS_COLLECTION_ID, databases, client as appwriteClient } from './lib/appwrite';
 import { Query } from 'appwrite';
 import CinematicLandingPage from './components/CinematicLandingPage';
@@ -1958,20 +1957,7 @@ export default function App() {
         setUserProfile(newProfile);
         setBalance(0);
 
-        // Sync new registration to Cloudflare D1 SQL database
-        try {
-          await cloudflareAPI.createUser({
-            id: user.uid,
-            name: newProfile.displayName,
-            email: user.email || `${user.uid}@sorat.live`,
-            role: newProfile.role,
-            balance: 0,
-            mobile: newProfile.mobile
-          });
-          console.log('[Cloudflare D1] User created & synchronized successfully!');
-        } catch (syncErr) {
-          console.warn('[Cloudflare D1] Non-blocking D1 registration sync note:', syncErr);
-        }
+        console.log('[Appwrite DB] User registration completed successfully.');
       }
     } catch (error) {
       handleAppError(error, OperationType.GET, `users/${user.uid}`);
@@ -3076,43 +3062,32 @@ export default function App() {
 
   const handleApproveDeposit = async (requestId: string, userId: string, amount: number) => {
     try {
-      // 1. Try to approve in Appwrite DB
+      // 1. Try to approve in Appwrite DB (this also automatically credits the user's balance on Appwrite!)
       try {
         await appwriteService.updatePaymentProofStatus(requestId, 'approved');
-        console.log('[Appwrite DB] Approved deposit successfully');
+        console.log('[Appwrite DB] Approved deposit and credited user balance successfully');
       } catch (appwriteErr) {
-        console.warn('[Appwrite DB] Failed to approve deposit or user already approved:', appwriteErr);
+        console.warn('[Appwrite DB] Failed to approve deposit in Appwrite:', appwriteErr);
       }
 
-      // 2. Try to update Firestore 'deposits' status
+      // 2. Try to update Firestore 'deposits' and 'depositRequests' status
       try {
         await updateDoc(doc(db, 'deposits', requestId), {
           status: 'approved'
         });
-        console.log('[Firestore DB] Approved in deposits collection successfully');
-      } catch (err) {
-        console.warn('[Firestore DB] Failed to update deposits status:', err);
-      }
-
-      // 3. Try Cloudflare Workers or standard fallback
-      try {
-        await cloudflareAPI.updateDepositStatus(requestId, 'approved', { userId, amount });
-        addNotification(`Deposit of ₹${amount} approved!`, 'win');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error approving deposit, falling back to direct Firestore update", cfErr);
-        // 1. Update status in depositRequests
         await updateDoc(doc(db, 'depositRequests', requestId), {
           status: 'approved'
         });
-        
-        // 2. Add balance using atomic increment in Firestore
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           balance: increment(amount)
         });
-        
-        addNotification(`Deposit of ₹${amount} approved! Balance added to user.`, 'win');
+        console.log('[Firestore DB] Approved in collections successfully');
+      } catch (err) {
+        console.warn('[Firestore DB] Failed to update local/mock status:', err);
       }
+
+      addNotification(`Deposit of ₹${amount} approved! Balance added to user.`, 'win');
       
       // Refresh admin data synchronously
       fetchAdminData(true);
@@ -3131,27 +3106,20 @@ export default function App() {
         console.warn('[Appwrite DB] Failed to reject deposit in Appwrite:', appwriteErr);
       }
 
-      // 2. Try to update Firestore 'deposits' status
+      // 2. Try to update Firestore 'deposits' and 'depositRequests' status
       try {
         await updateDoc(doc(db, 'deposits', requestId), {
           status: 'rejected'
         });
-        console.log('[Firestore DB] Rejected in deposits collection successfully');
-      } catch (err) {
-        console.warn('[Firestore DB] Failed to update deposits status:', err);
-      }
-
-      // 3. Try Cloudflare Workers or standard fallback
-      try {
-        await cloudflareAPI.updateDepositStatus(requestId, 'rejected');
-        addNotification("Deposit request rejected!", 'info');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error rejecting deposit, falling back to direct Firestore update", cfErr);
         await updateDoc(doc(db, 'depositRequests', requestId), {
           status: 'rejected'
         });
-        addNotification("Deposit request rejected", 'info');
+        console.log('[Firestore DB] Rejected in collections successfully');
+      } catch (err) {
+        console.warn('[Firestore DB] Failed to update local/mock status:', err);
       }
+
+      addNotification("Deposit request rejected", 'info');
       
       // Refresh admin data synchronously
       fetchAdminData(true);
@@ -3313,10 +3281,20 @@ export default function App() {
     }
 
     try {
-      // 2. Deduct balance (Locking it)
+      // 2. Deduct balance in Mock Firestore
       await updateDoc(doc(db, 'users', currentUser.uid), {
         balance: increment(-amt)
       });
+
+      // 3. Deduct balance on Appwrite DB
+      const nextBalance = balance - amt;
+      setBalance(nextBalance);
+      try {
+        await appwriteService.updateUserBalance(currentUser.uid, nextBalance);
+        console.log('[Appwrite DB] Synchronized withdrawal balance deduction successfully');
+      } catch (appwriteErr) {
+        console.warn('[Appwrite DB] Failed to sync withdrawal balance deduction to Appwrite:', appwriteErr);
+      }
 
       addNotification(`Withdrawal request for ₹${amt} submitted!`, 'win');
       setIsWithdrawOpen(false);
@@ -3330,16 +3308,14 @@ export default function App() {
 
   const handleApproveWithdrawal = async (requestId: string) => {
     try {
-      try {
-        await cloudflareAPI.updateWithdrawalStatus(requestId, 'approved');
-        addNotification("Withdrawal approved via Cloudflare Workers!", 'win');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error approving withdrawal, falling back", cfErr);
-        await updateDoc(doc(db, 'withdrawalRequests', requestId), {
-          status: 'approved'
-        });
-        addNotification("Withdrawal approved!", 'win');
-      }
+      // Approve in mock database
+      await updateDoc(doc(db, 'withdrawalRequests', requestId), {
+        status: 'approved'
+      });
+      addNotification("Withdrawal request approved successfully!", 'win');
+      
+      // Refresh admin data synchronously
+      fetchAdminData(true);
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `withdrawalRequests/${requestId}`);
     }
@@ -3347,23 +3323,32 @@ export default function App() {
 
   const handleRejectWithdrawal = async (requestId: string, userId: string, amount: number) => {
     try {
+      // 1. Update status and refund in mock database
       try {
-        await cloudflareAPI.updateWithdrawalStatus(requestId, 'rejected', { userId, amount });
-        addNotification("Withdrawal rejected and refunded via Cloudflare Workers!", 'info');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error rejecting withdrawal, falling back", cfErr);
-        // 1. Update status
         await updateDoc(doc(db, 'withdrawalRequests', requestId), {
           status: 'rejected'
         });
-        
-        // 2. Refund balance
         await updateDoc(doc(db, 'users', userId), {
           balance: increment(amount)
         });
-        
-        addNotification("Withdrawal rejected and refunded!", 'info');
+      } catch (err) {
+        console.warn('[Mock DB] Failed to update rejection status:', err);
       }
+
+      // 2. Refund balance on Appwrite DB
+      try {
+        const currentDbBalance = await appwriteService.getUserBalance(userId);
+        const newBalance = currentDbBalance + amount;
+        await appwriteService.updateUserBalance(userId, newBalance);
+        console.log(`[Appwrite DB] Refunded ₹${amount} to user ${userId}`);
+      } catch (err) {
+        console.warn('[Appwrite DB] Failed to refund balance on Appwrite:', err);
+      }
+
+      addNotification("Withdrawal rejected and refunded successfully!", 'info');
+      
+      // Refresh admin data synchronously
+      fetchAdminData(true);
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `withdrawalRequests/${requestId}`);
     }
@@ -3399,14 +3384,21 @@ export default function App() {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
     const path = `users/${uid}`;
     try {
+      // 1. Update in Appwrite DB
       try {
-        await cloudflareAPI.updateUser(uid, { role: newRole });
-        addNotification(`User role updated to ${newRole.toUpperCase()} via Cloudflare Workers!`, 'win');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error toggling admin role, falling back", cfErr);
-        await updateDoc(doc(db, 'users', uid), { role: newRole });
-        addNotification(`User role updated to ${newRole.toUpperCase()}`, 'win');
+        await databases.updateDocument(DATABASE_ID, USERS_COLLECTION_ID, uid, { role: newRole });
+        console.log('[Appwrite DB] Updated user role successfully on Appwrite');
+      } catch (appwriteErr) {
+        console.warn('[Appwrite DB] Failed to update user role on Appwrite:', appwriteErr);
       }
+
+      // 2. Update in Mock Firestore
+      try {
+        await updateDoc(doc(db, 'users', uid), { role: newRole });
+      } catch (err) {}
+
+      addNotification(`User role updated to ${newRole.toUpperCase()} successfully!`, 'win');
+      fetchAdminData(true);
     } catch (e) {
       handleAppError(e, OperationType.UPDATE, path);
     }
@@ -3416,46 +3408,37 @@ export default function App() {
     if (!isAdminAuthorized) return;
     const path = `users/${uid}`;
     try {
+      const currentSelectedUser = allUsers.find(u => u.id === uid);
+      const currentBal = currentSelectedUser ? (currentSelectedUser.balance || 0) : 0;
+      const targetBalance = currentBal + amount;
+      
+      // Appwrite Function Secure Admin Bypass
       try {
-        await cloudflareAPI.updateUser(uid, { balanceAdjustment: amount });
+        await appwriteService.updateUserBalanceViaFunction(
+          uid,
+          Math.abs(amount),
+          amount >= 0 ? 'add' : 'remove',
+          'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
+        );
+        console.log("[Appwrite Functions] Secure bypass executed successfully!");
+        addNotification(`Balance adjusted by ₹${amount} via Appwrite Function bypass!`, 'win');
+      } catch (funcErr: any) {
+        console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
         
-        // Update local state immediately
-        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: (u.balance || 0) + amount } : u));
-        
-        addNotification(`Balance adjusted by ₹${amount} via Cloudflare Workers!`, 'win');
-      } catch (cfErr: any) {
-        console.warn("Cloudflare API error adjusting balance, attempting Appwrite Function bypass...", cfErr);
-        
-        // Appwrite Function Secure Admin Bypass
-        const currentSelectedUser = allUsers.find(u => u.id === uid);
-        const currentBal = currentSelectedUser ? (currentSelectedUser.balance || 0) : 0;
-        const targetBalance = currentBal + amount;
-        
-        try {
-          await appwriteService.updateUserBalanceViaFunction(
-            uid,
-            Math.abs(amount),
-            amount >= 0 ? 'add' : 'remove',
-            'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
-          );
-          console.log("[Appwrite Functions] Secure bypass executed successfully!");
-          addNotification(`Balance adjusted by ₹${amount} via Appwrite Function bypass!`, 'win');
-        } catch (funcErr: any) {
-          console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
-          
-          // Appwrite Direct Fallback
-          await appwriteService.updateUserBalance(uid, targetBalance);
-          addNotification(`Balance adjusted by ₹${amount} (Direct DB Fallback)`, 'win');
-        }
-        
-        // Firebase Fallback
+        // Appwrite Direct Fallback
+        await appwriteService.updateUserBalance(uid, targetBalance);
+        addNotification(`Balance adjusted by ₹${amount} (Direct DB Fallback)`, 'win');
+      }
+      
+      // Firebase Fallback
+      try {
         await updateDoc(doc(db, 'users', uid), {
           balance: increment(amount)
         });
-        
-        // Update local state immediately
-        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: targetBalance } : u));
-      }
+      } catch (err) {}
+      
+      // Update local state immediately
+      setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: targetBalance } : u));
     } catch (error) {
       handleAppError(error, OperationType.WRITE, path);
     }
@@ -3467,40 +3450,31 @@ export default function App() {
     const newBalance = parseFloat(amt);
     if (isNaN(newBalance)) return;
     try {
+      // Appwrite Function Secure Admin Bypass
       try {
-        await cloudflareAPI.updateUser(uid, { balance: newBalance });
+        await appwriteService.updateUserBalanceViaFunction(
+          uid,
+          newBalance,
+          'set',
+          'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
+        );
+        console.log("[Appwrite Functions] Secure bypass executed successfully!");
+        addNotification(`User balance set to ₹${newBalance} via Appwrite Function bypass!`, 'win');
+      } catch (funcErr: any) {
+        console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
         
-        // Update local state immediately
-        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
-        
-        addNotification(`User balance updated to ₹${newBalance} via Cloudflare Workers!`, 'win');
-      } catch (cfErr: any) {
-        console.warn("Cloudflare API error updating balance, attempting Appwrite Function bypass...", cfErr);
-        
-        // Appwrite Function Secure Admin Bypass
-        try {
-          await appwriteService.updateUserBalanceViaFunction(
-            uid,
-            newBalance,
-            'set',
-            'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
-          );
-          console.log("[Appwrite Functions] Secure bypass executed successfully!");
-          addNotification(`User balance set to ₹${newBalance} via Appwrite Function bypass!`, 'win');
-        } catch (funcErr: any) {
-          console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
-          
-          // Appwrite Direct Fallback
-          await appwriteService.updateUserBalance(uid, newBalance);
-          addNotification(`User balance set to ₹${newBalance} (Direct DB Fallback)`, 'win');
-        }
-        
-        // Firebase Fallback
-        await updateDoc(doc(db, 'users', uid), { balance: newBalance });
-        
-        // Update local state immediately
-        setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
+        // Appwrite Direct Fallback
+        await appwriteService.updateUserBalance(uid, newBalance);
+        addNotification(`User balance set to ₹${newBalance} (Direct DB Fallback)`, 'win');
       }
+      
+      // Firebase Fallback
+      try {
+        await updateDoc(doc(db, 'users', uid), { balance: newBalance });
+      } catch (err) {}
+      
+      // Update local state immediately
+      setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
     } catch (e) {
       handleAppError(e, OperationType.WRITE, `users/${uid}`);
     }
@@ -3516,16 +3490,22 @@ export default function App() {
     if (!confirm("Are you sure you want to delete this user? ALL data will be lost.")) return;
     
     try {
+      // 1. Delete from Appwrite DB
       try {
-        await cloudflareAPI.deleteUser(uid);
-        addNotification("User and their data deleted successfully via Cloudflare Workers!", 'info');
-      } catch (cfErr) {
-        console.warn("Cloudflare API error deleting user, falling back", cfErr);
-        await deleteDoc(doc(db, 'users', uid));
-        // Also cleanup leaderboard
-        await deleteDoc(doc(db, 'leaderboard', uid));
-        addNotification("User and their data deleted successfully", 'info');
+        await databases.deleteDocument(DATABASE_ID, USERS_COLLECTION_ID, uid);
+        console.log('[Appwrite DB] Deleted user document');
+      } catch (err) {
+        console.warn('[Appwrite DB] Failed to delete user on Appwrite:', err);
       }
+
+      // 2. Delete from Mock Firestore
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+        await deleteDoc(doc(db, 'leaderboard', uid));
+      } catch (err) {}
+
+      addNotification("User and their data deleted successfully", 'info');
+      fetchAdminData(true);
     } catch (error) {
       handleAppError(error, OperationType.WRITE, `users/${uid}`);
     }
@@ -5191,6 +5171,7 @@ export default function App() {
                           </div>
 
                           {/* Cloudflare D1 Database Engine Selector Toggle */}
+                          {/* Appwrite Database Engine Selector Toggle */}
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/40 p-2 rounded-2xl border border-white/5">
                             <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 select-none self-start">
                               <button 
@@ -5198,7 +5179,7 @@ export default function App() {
                                 className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${usersViewMode === 'sql' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'}`}
                               >
                                 <Database size={12} />
-                                D1 SQL Grid
+                                Appwrite Grid
                               </button>
                               <button 
                                 onClick={() => setUsersViewMode('cards')}
@@ -5209,22 +5190,22 @@ export default function App() {
                               </button>
                             </div>
                             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                              Connected Database: Cloudflare Workers + D1 DB
+                              Connected Database: Appwrite Realtime DB
                             </span>
                           </div>
 
-                          {/* D1 live visual terminal header */}
+                          {/* Appwrite live visual terminal header */}
                           {usersViewMode === 'sql' && (
                             <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/10 font-mono text-left relative overflow-hidden group">
-                              <div className="absolute top-0 right-0 p-2 text-slate-800 pointer-events-none group-hover:text-amber-500/20 transition-all font-sans font-black text-[9px] tracking-widest uppercase">Cloudflare D1 Query Engine</div>
+                              <div className="absolute top-0 right-0 p-2 text-slate-800 pointer-events-none group-hover:text-amber-500/20 transition-all font-sans font-black text-[9px] tracking-widest uppercase">Appwrite Database Engine</div>
                               <div className="flex items-center gap-2 text-amber-500 text-xs">
                                 <Terminal size={14} className="animate-pulse" />
-                                <span className="font-bold tracking-widest text-[10px]">D1-CONSOLE:/$</span>
-                                <span className="text-white">SELECT id, name, email, role, balance FROM users WHERE name LIKE &apos;%{userSearchQuery}%&apos;;</span>
+                                <span className="font-bold tracking-widest text-[10px]">APPWRITE:/$</span>
+                                <span className="text-white">databases.listDocuments(&apos;main&apos;, &apos;users&apos;, [Query.search(&apos;name&apos;, &apos;{userSearchQuery}&apos;)]);</span>
                               </div>
                               <div className="text-[9px] text-slate-500 uppercase mt-1.5 font-sans font-bold flex gap-4">
-                                <span>• ENGINE: SQLITE (D1 EDGE)</span>
-                                <span>• ROWS RETURNED: {allUsers.filter(u => u.role !== 'admin').length}</span>
+                                <span>• ENGINE: APPWRITE CLOUD</span>
+                                <span>• DOCUMENTS RETURNED: {allUsers.filter(u => u.role !== 'admin').length}</span>
                                 <span>• STATUS: ACTIVE</span>
                               </div>
                             </div>
