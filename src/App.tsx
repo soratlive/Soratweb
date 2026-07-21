@@ -879,6 +879,8 @@ export default function App() {
     }
   };
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [showWithdrawSuccess, setShowWithdrawSuccess] = useState(false);
+  const [lastWithdrawAmount, setLastWithdrawAmount] = useState<number>(0);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [withdrawalMethod, setWithdrawalMethod] = useState<'upi' | 'bank'>('upi');
   const [transactionAmount, setTransactionAmount] = useState('');
@@ -1713,10 +1715,11 @@ export default function App() {
   // --- Admin Logic ---
   const isAdminAuthorized = useMemo(() => {
     if (!currentUser) return false;
-    const emailStr = currentUser.email || '';
+    const emailStr = (currentUser.email || '').toLowerCase().trim();
     const isOwnerMobile = emailStr === '9049583034@sorat.live' || userProfile?.mobile === '9049583034';
-    const isOwnerEmail = emailStr === 'nikhilrv8055@gmail.com';
-    return isOwnerMobile || isOwnerEmail;
+    const isOwnerEmail = emailStr === 'nikhilrv8055@gmail.com' || emailStr === 'admin@sorat.live';
+    const hasAdminRole = userProfile?.role === 'admin';
+    return isOwnerMobile || isOwnerEmail || hasAdminRole;
   }, [currentUser, userProfile]);
 
   const recordLoginLog = async (user: any) => {
@@ -3416,7 +3419,10 @@ export default function App() {
       }
 
       addNotification(`Withdrawal request for ₹${amt} submitted!`, 'win');
+      setLastWithdrawAmount(amt);
+      setShowWithdrawSuccess(true);
       setIsWithdrawOpen(false);
+      setIsProfileOpen(false);
       setShowWithdrawConfirm(false);
       setTransactionAmount('');
       playSound('lock');
@@ -5935,8 +5941,14 @@ $$;`}
                                   <span className="text-[9px] text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{user.email || 'No email stored'}</span>
                                   <div className="flex gap-2 mt-2">
                                      <span 
-                                      onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)}
-                                      className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white transition-all">
+                                      onClick={() => {
+                                        setActiveAdjustUser(user);
+                                        setAdjustAmount('');
+                                        setAdjustAction('set');
+                                      }}
+                                      className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white transition-all"
+                                      title="Click to control wallet"
+                                     >
                                        ₹{user.balance?.toLocaleString()}
                                      </span>
                                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/20 text-red-500`}>
@@ -5965,6 +5977,18 @@ $$;`}
                                   </div>
                                 </div>
                                 <div className="flex flex-col gap-2 scale-90 sm:scale-100 origin-right">
+                                  <button 
+                                    onClick={() => {
+                                      setActiveAdjustUser(user);
+                                      setAdjustAmount('');
+                                      setAdjustAction('add');
+                                    }} 
+                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all font-black uppercase tracking-widest text-[9px]"
+                                    title="Advanced Balance Controller"
+                                  >
+                                    <Coins size={14} />
+                                    <span>Wallet</span>
+                                  </button>
                                   {currentUser?.email === 'nikhilrv8055@gmail.com' && (
                                     <button 
                                       onClick={() => handleToggleUserAdmin(user.id, user.role)} 
@@ -8618,6 +8642,53 @@ $$;`}
           )}
         </AnimatePresence>
 
+        {/* Withdrawal Success Popup */}
+        <AnimatePresence>
+          {showWithdrawSuccess && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overscroll-none select-none touch-none"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }} 
+                animate={{ scale: 1, y: 0 }} 
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-slate-900 w-full max-w-sm mx-auto rounded-[2.5rem] border border-emerald-500/20 p-6 shadow-[0_0_50px_rgba(16,185,129,0.15)] text-center flex flex-col items-center gap-4 relative"
+              >
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-2">
+                  <CheckCircle size={36} className="animate-pulse" />
+                </div>
+                
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black text-emerald-400 tracking-tight uppercase">Successfully Submitted</h3>
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-wide">सफलतापूर्वक सबमिट हो गया!</p>
+                </div>
+
+                <div className="w-full bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-black block tracking-wider">Withdrawal Amount</span>
+                  <span className="text-2xl font-black text-white font-mono">₹{lastWithdrawAmount}</span>
+                  <div className="border-t border-white/5 pt-2 mt-2">
+                    <span className="text-[9px] text-amber-500 font-bold uppercase block leading-tight">Estimated Arrival Time: 30 - 90 Minutes</span>
+                    <span className="text-[8px] text-slate-400 uppercase font-semibold block mt-0.5">आपका पेमेंट 30 से 90 minute में क्रेडिट हो जाएगा।</span>
+                  </div>
+                </div>
+
+                <p className="text-[9px] text-slate-500 uppercase font-bold leading-normal px-2">
+                  Please keep checking your transaction history for updates on your withdrawal request.
+                </p>
+
+                <button 
+                  onClick={() => setShowWithdrawSuccess(false)}
+                  className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-4 rounded-xl text-[10px] uppercase tracking-[0.15em] transition-all shadow-lg active:scale-95 border border-emerald-500/20"
+                >
+                  GO BACK TO LOBBY / लॉबी पर जाएं
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Result Overlay */}
         <AnimatePresence>
