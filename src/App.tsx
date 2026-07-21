@@ -6067,47 +6067,79 @@ $$;`}
                         </div>
                       ) : adminTab === 'deposits' ? (
                         <div className="space-y-4">
-                          {depositRequests.map(req => (
-                            <div key={req.id} className="bg-slate-900 border border-white/5 rounded-2xl p-5 relative">
-                               <div className="flex justify-between items-start mb-4">
-                                  <div><div className="text-xs font-black text-white">{req.email}</div><div className="text-[9px] text-slate-500">{new Date(req.timestamp).toLocaleString()}</div></div>
-                                  <div className="text-xl font-black text-green-500">₹{req.amount}</div>
-                               </div>
-                               <div className="bg-slate-950 p-3 rounded-2xl mb-4 text-[9px] flex justify-between text-white flex-wrap gap-y-2">
-                                  <div className="flex flex-col"><span className="text-slate-500 uppercase font-black text-[7px]">Method</span> <span className="uppercase">{req.method}</span></div>
-                                  <div className="flex flex-col text-right"><span className="text-slate-500 uppercase font-black text-[7px]">UTR</span> <span>{req.transactionId}</span></div>
-                                  {req.dealerId && (
-                                    <div className="flex flex-col w-full pt-1 border-t border-white/5"><span className="text-slate-500 uppercase font-black text-[7px]">Dealer</span> <span>{dealers.find(d => d.id === req.dealerId)?.name || 'Unknown Dealer'}</span></div>
-                                  )}
-                                </div>
+                          {depositRequests.map(req => {
+                            const depositorUser = allUsers.find(u => u.id === req.userId || (u.email && u.email.toLowerCase().trim() === req.email?.toLowerCase().trim()));
+                            const depositorName = depositorUser?.displayName || depositorUser?.name || req.email?.split('@')[0] || 'Unknown Player';
+                            const depositorPhone = req.email?.split('@')[0] || 'N/A';
+                            const screenshotUrlVal = req.screenshotUrl || req.screenshot_url;
 
-                                <div className="bg-slate-950 p-4 rounded-xl border border-white/5 mb-4 shadow-inner">
-                                  <div className="text-slate-500 uppercase font-black text-[7px] mb-2 border-b border-white/5 pb-1 flex items-center justify-between font-sans">
-                                     BALANCE TRACKING <TrendingUp size={8} />
+                            return (
+                              <div key={req.id} className="bg-slate-900 border border-white/5 rounded-2xl p-5 relative">
+                                 <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                      <div className="text-xs font-black text-white flex items-center gap-2">
+                                        <span className="text-amber-400 uppercase tracking-wider">{depositorName}</span>
+                                        <span className="text-[9px] text-slate-500 font-mono">({depositorPhone})</span>
+                                      </div>
+                                      <div className="text-[9px] text-slate-500 mt-0.5 font-semibold uppercase">{new Date(req.timestamp).toLocaleString()}</div>
+                                      <div className="text-[8px] text-slate-400 mt-1 uppercase font-bold">UID: {req.userId || 'N/A'}</div>
+                                    </div>
+                                    <div className="text-xl font-black text-green-500">₹{req.amount}</div>
+                                 </div>
+                                 <div className="bg-slate-950 p-3 rounded-2xl mb-4 text-[9px] flex justify-between text-white flex-wrap gap-y-2">
+                                    <div className="flex flex-col"><span className="text-slate-500 uppercase font-black text-[7px]">Method</span> <span className="uppercase">{req.method}</span></div>
+                                    <div className="flex flex-col text-right"><span className="text-slate-500 uppercase font-black text-[7px]">UTR</span> <span>{req.transactionId}</span></div>
+                                    {req.dealerId && (
+                                      <div className="flex flex-col w-full pt-1 border-t border-white/5"><span className="text-slate-500 uppercase font-black text-[7px]">Dealer</span> <span>{dealers.find(d => d.id === req.dealerId)?.name || 'Unknown Dealer'}</span></div>
+                                    )}
                                   </div>
-                                  <div className="space-y-1.5 font-mono text-[9px] text-white">
-                                     <div className="flex justify-between"><span>User Bal Before:</span> <span className="text-slate-400">₹{req.userBalanceBefore || '0'}</span></div>
-                                     <div className="flex justify-between"><span>Deposit Amount:</span> <span className="text-emerald-400 font-black">+₹{req.amount}</span></div>
-                                     <div className="flex justify-between border-t border-white/5 pt-1 mt-1"><span>Target Bal:</span> <span className="text-blue-400 font-black">₹{(req.userBalanceBefore || 0) + req.amount}</span></div>
-                                  </div>
-                                </div>
 
-                                {req.screenshotUrl && (
-                                  <div className="mb-4">
-                                    <span className="text-slate-500 uppercase font-black text-[7px] block mb-1">Screenshot</span>
-                                    <div className="w-full h-32 bg-slate-950 rounded-xl overflow-hidden border border-white/5">
-                                       <img src={req.screenshotUrl} alt="Screenshot" className="w-full h-full object-contain cursor-zoom-in" onClick={() => window.open(req.screenshotUrl)} />
+                                  <div className="bg-slate-950 p-4 rounded-xl border border-white/5 mb-4 shadow-inner">
+                                    <div className="text-slate-500 uppercase font-black text-[7px] mb-2 border-b border-white/5 pb-1 flex items-center justify-between font-sans">
+                                       BALANCE TRACKING <TrendingUp size={8} />
+                                    </div>
+                                    <div className="space-y-1.5 font-mono text-[9px] text-white">
+                                       <div className="flex justify-between"><span>User Bal Before:</span> <span className="text-slate-400">₹{req.userBalanceBefore || '0'}</span></div>
+                                       <div className="flex justify-between"><span>Deposit Amount:</span> <span className="text-emerald-400 font-black">+₹{req.amount}</span></div>
+                                       <div className="flex justify-between border-t border-white/5 pt-1 mt-1"><span>Target Bal:</span> <span className="text-blue-400 font-black">₹{(req.userBalanceBefore || 0) + req.amount}</span></div>
                                     </div>
                                   </div>
-                                )}
-                                {req.status === 'pending' && (
-                                 <div className="grid grid-cols-2 gap-2">
-                                   <button onClick={() => handleRejectDeposit(req.id)} className="bg-red-600/10 text-red-500 border border-red-500/20 py-2 rounded-xl text-[10px] font-black uppercase">REJECT</button>
-                                   <button onClick={() => handleApproveDeposit(req.id, req.userId, req.amount)} className="bg-green-600 text-white py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-green-600/20">APPROVE</button>
-                                 </div>
-                               )}
-                            </div>
-                          ))}
+
+                                  {screenshotUrlVal && (
+                                    <div className="mb-4">
+                                      <span className="text-slate-500 uppercase font-black text-[7px] block mb-1">Screenshot Proof</span>
+                                      <div className="w-full h-32 bg-slate-950 rounded-xl overflow-hidden border border-white/5 relative group/img">
+                                         <img 
+                                           src={screenshotUrlVal} 
+                                           alt="Screenshot" 
+                                           className="w-full h-full object-contain cursor-zoom-in" 
+                                           onClick={() => window.open(screenshotUrlVal, '_blank')} 
+                                         />
+                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-all pointer-events-none">
+                                           <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">CLICK TO OPEN SCREENSHOT</span>
+                                         </div>
+                                      </div>
+                                      <div className="mt-2 text-right">
+                                         <a 
+                                           href={screenshotUrlVal} 
+                                           target="_blank" 
+                                           rel="noopener noreferrer" 
+                                           className="text-[9px] font-black text-blue-400 hover:text-blue-300 underline uppercase inline-flex items-center gap-1"
+                                         >
+                                           View Screenshot Link ↗
+                                         </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {req.status === 'pending' && (
+                                   <div className="grid grid-cols-2 gap-2">
+                                     <button onClick={() => handleRejectDeposit(req.id)} className="bg-red-600/10 text-red-500 border border-red-500/20 py-2 rounded-xl text-[10px] font-black uppercase">REJECT</button>
+                                     <button onClick={() => handleApproveDeposit(req.id, req.userId, req.amount)} className="bg-green-600 text-white py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-green-600/20">APPROVE</button>
+                                   </div>
+                                 )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : adminTab === 'payment_proofs' ? (
                         <div className="space-y-4">
