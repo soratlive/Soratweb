@@ -808,6 +808,10 @@ export default function App() {
   const [localDiagnostics, setLocalDiagnostics] = useState<any[]>(() => [...diagnosticLogs]);
   const [testUserResult, setTestUserResult] = useState<{ status: 'success' | 'err'; message: string } | null>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [loginLogs, setLoginLogs] = useState<any[]>([]);
+  const [activeAdjustUser, setActiveAdjustUser] = useState<any | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState<string>('');
+  const [adjustAction, setAdjustAction] = useState<'add' | 'remove' | 'set'>('add');
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
   const [paymentProofs, setPaymentProofs] = useState<any[]>([]);
@@ -1715,17 +1719,86 @@ export default function App() {
     return isOwnerMobile || isOwnerEmail;
   }, [currentUser, userProfile]);
 
+  const recordLoginLog = async (user: any) => {
+    if (!user) return;
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const platformStr = isNative ? 'Android App' : 'Web Browser';
+      const emailStr = user.email || '';
+      const userId = user.uid || user.id || '';
+      const nameStr = user.displayName || user.name || emailStr.split('@')[0] || 'Player';
+      
+      // Update lastLogin, lastLoginPlatform in Firestore 'users'
+      try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          lastLogin: Date.now(),
+          lastLoginPlatform: platformStr
+        });
+      } catch (e) {
+        // Fallback: set doc if it doesn't exist
+        try {
+          await setDoc(doc(db, 'users', userId), {
+            userId,
+            id: userId,
+            email: emailStr,
+            displayName: nameStr,
+            name: nameStr,
+            lastLogin: Date.now(),
+            lastLoginPlatform: platformStr,
+            balance: user.balance || 0,
+            role: user.role || 'user'
+          }, { merge: true });
+        } catch (innerE) {}
+      }
+
+      // Add log to 'loginLogs'
+      const logRef = collection(db, 'loginLogs');
+      await addDoc(logRef, {
+        userId,
+        email: emailStr,
+        name: nameStr,
+        timestamp: Date.now(),
+        platform: platformStr,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown'
+      });
+      console.log('[Firestore] Recorded login log for:', emailStr);
+    } catch (err) {
+      console.warn('[Firestore] Failed to record login log:', err);
+    }
+  };
+
   const fetchAdminData = async (force = false) => {
     if (!isAdminOpen || !isAdminLoggedIn || !isAdminAuthorized || isQuotaExceeded) return;
     const now = Date.now();
     if (!force && lastFetch['adminData'] && now - lastFetch['adminData'] < 60000) return; // 1 min TTL
     
-    // 1. Fetch Users from Appwrite DB
+    // 1. Fetch Users from Appwrite DB & Firestore
     try {
       const res = await databases.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [Query.limit(100)]);
-      const fetchedUsers = res.documents.map(doc => ({ id: doc.$id, ...doc }));
-      setAllUsers(fetchedUsers);
-      localStorage.setItem('cached_admin_users', JSON.stringify(fetchedUsers));
+      const appwriteUsers = res.documents.map(doc => ({ id: doc.$id, ...doc }));
+      
+      // Fetch Firestore users to merge lastLogin
+      let firestoreUsers: any[] = [];
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        firestoreUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (err) {
+        console.warn("Firestore users fetch failed:", err);
+      }
+
+      // Merge lastLogin, lastLoginPlatform from Firestore into Appwrite users
+      const mergedUsers = appwriteUsers.map(au => {
+        const fu = firestoreUsers.find(u => u.id === au.id);
+        return {
+          ...au,
+          lastLogin: fu?.lastLogin || null,
+          lastLoginPlatform: fu?.lastLoginPlatform || null
+        };
+      });
+
+      setAllUsers(mergedUsers);
+      localStorage.setItem('cached_admin_users', JSON.stringify(mergedUsers));
     } catch (error) {
       console.warn("Appwrite Users fetch failed, using local offline cache", error);
       const cached = localStorage.getItem('cached_admin_users');
@@ -1854,6 +1927,16 @@ export default function App() {
       { id: 'offline-dealer-1', name: 'Official Sorat Recharge 1', whatsapp: '9049583034', upiId: 'recharge1@ybl', qrUrl: '', isActive: true },
       { id: 'offline-dealer-2', name: 'Premium Support Portal', whatsapp: '9049583034', upiId: 'recharge2@ybl', qrUrl: '', isActive: true }
     ]);
+
+    // 5. Fetch login logs from Firestore
+    try {
+      const snap = await getDocs(collection(db, 'loginLogs'));
+      const fetchedLogs = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      setLoginLogs(fetchedLogs);
+    } catch (err) {
+      console.warn("Failed to fetch login logs from Firestore:", err);
+    }
     
     setLastFetch(prev => ({ ...prev, adminData: now }));
   };
@@ -1983,6 +2066,7 @@ export default function App() {
           setBalance(user.balance);
           setIsDemoMode(false);
           setDbConnectionStatus('Connected');
+          recordLoginLog(user);
           
           // Save the user session to localStorage for immediate persistence & fast load on next refresh
           try {
@@ -3515,6 +3599,38 @@ export default function App() {
     }
   };
 
+  const handleAdminUpdateUserBalanceDirect = async (uid: string, newBalance: number) => {
+    try {
+      // Appwrite Function Secure Admin Bypass
+      try {
+        await appwriteService.updateUserBalanceViaFunction(
+          uid,
+          newBalance,
+          'set',
+          'SORAT_SUPER_SECRET_ADMIN_TOKEN_2026'
+        );
+        console.log("[Appwrite Functions] Secure bypass executed successfully!");
+        addNotification(`User balance set to ₹${newBalance} via Appwrite Function bypass!`, 'win');
+      } catch (funcErr: any) {
+        console.warn("Appwrite Function bypass failed, falling back to direct database writes", funcErr);
+        
+        // Appwrite Direct Fallback
+        await appwriteService.updateUserBalance(uid, newBalance);
+        addNotification(`User balance set to ₹${newBalance} (Direct DB Fallback)`, 'win');
+      }
+      
+      // Firebase Fallback
+      try {
+        await updateDoc(doc(db, 'users', uid), { balance: newBalance });
+      } catch (err) {}
+      
+      // Update local state immediately
+      setAllUsers(prev => prev.map(u => u.id === uid ? { ...u, balance: newBalance } : u));
+    } catch (e) {
+      handleAppError(e, OperationType.WRITE, `users/${uid}`);
+    }
+  };
+
   const handleDeleteUser = async (uid: string) => {
     if (!isAdminAuthorized) return;
     const targetUser = allUsers.find(u => u.id === uid);
@@ -3668,6 +3784,7 @@ export default function App() {
         setBalance(user.balance);
         setIsDemoMode(false);
         setDbConnectionStatus('Connected');
+        recordLoginLog(user);
         try {
           localStorage.setItem('appwrite_session_user', JSON.stringify(user));
         } catch (e) {}
@@ -5257,6 +5374,7 @@ export default function App() {
                                       <th className="py-3.5 px-4">Email</th>
                                       <th className="py-3.5 px-4">Role</th>
                                       <th className="py-3.5 px-4">Balance</th>
+                                      <th className="py-3.5 px-4">Last Login</th>
                                       <th className="py-3.5 px-4">Quick Adjust</th>
                                       <th className="py-3.5 px-4 text-right">Actions</th>
                                     </tr>
@@ -5274,11 +5392,26 @@ export default function App() {
                                         </td>
                                         <td className="py-3.5 px-4">
                                           <span 
-                                            onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)} 
+                                            onClick={() => {
+                                              setActiveAdjustUser(user);
+                                              setAdjustAmount('');
+                                              setAdjustAction('set');
+                                            }} 
                                             className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-xl cursor-pointer hover:bg-amber-500 hover:text-slate-950 transition-all whitespace-nowrap"
+                                            title="Click to control wallet"
                                           >
                                             ₹{(user.balance || 0).toLocaleString()}
                                           </span>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-mono text-[9px] text-slate-400">
+                                          {user.lastLogin ? (
+                                            <div className="leading-tight">
+                                              <div className="text-white font-bold">{new Date(user.lastLogin).toLocaleString()}</div>
+                                              <div className="text-[8px] text-slate-500 uppercase">{user.lastLoginPlatform || 'Web'}</div>
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-600 uppercase text-[8px] font-black">No login recorded</span>
+                                          )}
                                         </td>
                                         <td className="py-3.5 px-4">
                                           <div className="flex gap-1.5">
@@ -5304,6 +5437,17 @@ export default function App() {
                                         </td>
                                         <td className="py-3.5 px-4 text-right">
                                           <div className="flex justify-end gap-1.5 scale-90 origin-right">
+                                            <button 
+                                              onClick={() => {
+                                                setActiveAdjustUser(user);
+                                                setAdjustAmount('');
+                                                setAdjustAction('add');
+                                              }} 
+                                              className="p-2 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all"
+                                              title="Advanced Balance Controller"
+                                            >
+                                              <Coins size={12} />
+                                            </button>
                                             {currentUser?.email === 'nikhilrv8055@gmail.com' && (
                                               <button 
                                                 onClick={() => handleToggleUserAdmin(user.id, user.role)} 
@@ -5332,11 +5476,16 @@ export default function App() {
                                 {allUsers.filter(u => (u.role !== 'admin') && ((u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()))).map(user => (
                                   <div key={user.id} className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex justify-between items-center group relative font-semibold">
                                     <div className="flex flex-col">
-                                      <span className="text-xs font-black text-white">{user.displayName || user.email || 'Unregistered Player'}</span>
+                                      <span className="text-xs font-black text-white">{user.displayName || user.name || 'Unregistered Player'}</span>
                                       <span className="text-[9px] text-slate-500 uppercase tracking-tighter truncate max-w-[150px]">{user.email || 'No email stored'}</span>
+                                      
                                       <div className="flex gap-2 mt-2">
                                          <span 
-                                          onClick={() => handleAdminUpdateUserBalance(user.id, user.balance || 0)}
+                                          onClick={() => {
+                                            setActiveAdjustUser(user);
+                                            setAdjustAmount('');
+                                            setAdjustAction('set');
+                                          }}
                                           className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white transition-all">
                                            ₹{user.balance?.toLocaleString()}
                                           </span>
@@ -5344,6 +5493,15 @@ export default function App() {
                                             {user.role || 'user'}
                                           </span>
                                        </div>
+
+                                       <div className="mt-2 text-[8px] font-mono text-slate-400">
+                                         {user.lastLogin ? (
+                                           <span>LAST LOGIN: {new Date(user.lastLogin).toLocaleString()} ({user.lastLoginPlatform || 'Web'})</span>
+                                         ) : (
+                                           <span className="text-slate-600">NO LOGIN RECORDED</span>
+                                         )}
+                                       </div>
+
                                       <div className="mt-3 flex gap-1.5 flex-wrap">
                                         <button 
                                           onClick={() => handleAdjustBalance(user.id, 100)}
@@ -5366,6 +5524,18 @@ export default function App() {
                                       </div>
                                     </div>
                                     <div className="flex flex-col gap-2 scale-90 sm:scale-100 origin-right">
+                                      <button 
+                                        onClick={() => {
+                                          setActiveAdjustUser(user);
+                                          setAdjustAmount('');
+                                          setAdjustAction('add');
+                                        }} 
+                                        className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition-all font-black uppercase tracking-widest text-[9px]"
+                                        title="Advanced Balance Controller"
+                                      >
+                                        <Coins size={14} />
+                                        <span>Wallet</span>
+                                      </button>
                                       {currentUser?.email === 'nikhilrv8055@gmail.com' && (
                                         <button 
                                           onClick={() => handleToggleUserAdmin(user.id, user.role)} 
@@ -5572,6 +5742,176 @@ $$;`}
                                     </pre>
                                   </div>
                                 )}
+                              </div>
+                            )}
+
+                            {/* RECENT USER LOGIN HISTORY LOGS SECTION */}
+                            <div className="bg-slate-950 p-6 rounded-3xl border border-white/5 space-y-4 mt-6">
+                              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-amber-500 uppercase tracking-widest">Recent Login Activities</h4>
+                                  <p className="text-[9px] text-slate-500 uppercase mt-0.5 font-bold">Real-time session updates & user platform statistics</p>
+                                </div>
+                                <span className="px-2.5 py-1 bg-slate-900 border border-white/5 text-[9px] font-mono text-slate-400 rounded-xl">
+                                  {loginLogs.length} LOGGED SESSIONS
+                                </span>
+                              </div>
+
+                              {loginLogs.length === 0 ? (
+                                <div className="p-8 text-center bg-slate-900/40 rounded-2xl border border-white/5 text-[10px] text-slate-500 uppercase font-black tracking-wider">
+                                  No login activities recorded in Firestore yet.
+                                </div>
+                              ) : (
+                                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                  {loginLogs.slice(0, 50).map((log, index) => (
+                                    <div key={log.id || index} className="p-3.5 bg-slate-900/60 hover:bg-slate-900 border border-white/5 rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-xl text-xs font-black uppercase shrink-0 ${
+                                          log.platform === 'Android App' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/10' : 'bg-blue-500/15 text-blue-400 border border-blue-500/10'
+                                        }`}>
+                                          {log.platform === 'Android App' ? 'APK' : 'WEB'}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="text-xs font-black text-white truncate max-w-[200px] sm:max-w-none">{log.name}</div>
+                                          <div className="text-[9px] text-slate-500 font-bold truncate max-w-[180px] sm:max-w-none">{log.email}</div>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-col sm:items-end text-[9px] font-mono font-semibold text-slate-400">
+                                        <div className="text-white font-bold">{new Date(log.timestamp).toLocaleString()}</div>
+                                        <div className="text-[8px] text-slate-500 uppercase font-sans tracking-tight truncate max-w-[250px]" title={log.userAgent}>
+                                          {log.userAgent || 'Unknown Agent'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Advanced Balance Controller Modal Overlay */}
+                            {activeAdjustUser && (
+                              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                                <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-md p-6 relative shadow-2xl animate-in fade-in zoom-in duration-200">
+                                  <button 
+                                    onClick={() => setActiveAdjustUser(null)}
+                                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-all"
+                                  >
+                                    <X size={20} />
+                                  </button>
+                                  
+                                  <div className="space-y-4">
+                                    <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                                      <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 text-amber-500">
+                                        <Coins size={24} />
+                                      </div>
+                                      <div>
+                                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Balance Controller</h3>
+                                        <p className="text-[10px] text-slate-500 uppercase mt-0.5 font-bold">
+                                          Managing Wallet: <span className="text-amber-400">{activeAdjustUser.displayName || activeAdjustUser.email || 'Player'}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Current balance display */}
+                                    <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Current Balance</span>
+                                      <span className="text-sm font-black text-emerald-400">₹{(activeAdjustUser.balance || 0).toLocaleString()}</span>
+                                    </div>
+
+                                    {/* Operation type selector */}
+                                    <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-2xl border border-white/5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setAdjustAction('add')}
+                                        className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${adjustAction === 'add' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-400 hover:text-white'}`}
+                                      >
+                                        Add (+)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setAdjustAction('remove')}
+                                        className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${adjustAction === 'remove' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-slate-400 hover:text-white'}`}
+                                      >
+                                        Remove (-)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setAdjustAction('set')}
+                                        className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${adjustAction === 'set' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white'}`}
+                                      >
+                                        Set (=)
+                                      </button>
+                                    </div>
+
+                                    {/* Amount Input */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                        {adjustAction === 'set' ? 'Enter New Balance (₹)' : 'Enter Amount (₹)'}
+                                      </label>
+                                      <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">₹</span>
+                                        <input
+                                          type="number"
+                                          placeholder="0.00"
+                                          className="w-full bg-slate-950 border border-white/5 rounded-2xl py-3 pl-8 pr-4 text-xs font-black text-white focus:border-amber-500 outline-none transition-all"
+                                          value={adjustAmount}
+                                          onChange={(e) => setAdjustAmount(e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Quick presets */}
+                                    <div className="flex gap-1.5 flex-wrap">
+                                      {['100', '500', '1000', '5000', '10000'].map((preset) => (
+                                        <button
+                                          key={preset}
+                                          type="button"
+                                          onClick={() => setAdjustAmount(preset)}
+                                          className="text-[8px] font-black px-2.5 py-1.5 bg-slate-800 border border-white/5 rounded-xl text-slate-300 hover:bg-amber-500 hover:text-slate-950 hover:border-amber-500 transition-all"
+                                        >
+                                          ₹{preset}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-2 pt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveAdjustUser(null)}
+                                        className="flex-1 py-3 bg-slate-800 border border-white/5 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          const amt = parseFloat(adjustAmount);
+                                          if (isNaN(amt) || amt <= 0) {
+                                            addNotification("Please enter a valid positive amount.", "info");
+                                            return;
+                                          }
+                                          const currentBal = activeAdjustUser.balance || 0;
+                                          if (adjustAction === 'add') {
+                                            await handleAdjustBalance(activeAdjustUser.id, amt);
+                                          } else if (adjustAction === 'remove') {
+                                            if (currentBal < amt) {
+                                              addNotification("Caution: User balance will go below zero.", "info");
+                                            }
+                                            await handleAdjustBalance(activeAdjustUser.id, -amt);
+                                          } else if (adjustAction === 'set') {
+                                            await handleAdminUpdateUserBalanceDirect(activeAdjustUser.id, amt);
+                                          }
+                                          setActiveAdjustUser(null);
+                                        }}
+                                        className="flex-1 py-3 bg-amber-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10"
+                                      >
+                                        Confirm Update
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
