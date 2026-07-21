@@ -823,6 +823,7 @@ export default function App() {
   const [dealerPaymentMethod, setDealerPaymentMethod] = useState<'gpay' | 'phonepe' | 'qr' | 'generic' | null>(null);
   const [transactionId, setTransactionId] = useState('');
   const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
 
   // --- Caching State ---
   const [lastFetch, setLastFetch] = useState<{ [key: string]: number }>({});
@@ -2988,12 +2989,12 @@ export default function App() {
       
       addNotification("Uploading screenshot to Appwrite Storage...", "info");
       
-      // Get the native File object via document.getElementById('file') as requested
+      // Get the native File object via document.getElementById('file') as fallback
       const fileInput = document.getElementById('file') as HTMLInputElement;
       const nativeFile = fileInput?.files?.[0];
       
-      // Pass the File object or base64 fallback to Appwrite Storage
-      const uploadResult = await appwriteService.uploadScreenshot(nativeFile || screenshotBase64);
+      // Pass the state File object, DOM File object, or base64 fallback to Appwrite Storage
+      const uploadResult = await appwriteService.uploadScreenshot(screenshotFile || nativeFile || screenshotBase64);
       const finalScreenshotUrl = uploadResult.url;
       const fileId = uploadResult.fileId;
       
@@ -3019,7 +3020,8 @@ export default function App() {
           screenshotUrl: finalScreenshotUrl,
           screenshot_url: finalScreenshotUrl, // Ensure both CamelCase and snake_case are saved
           status: 'pending',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          userBalanceBefore: balance
         });
         console.log('[Firestore DB] Deposit request written to depositRequests with screenshotUrl successfully.');
       } catch (dbErr) {
@@ -3038,7 +3040,8 @@ export default function App() {
           screenshotUrl: finalScreenshotUrl,
           screenshot_url: finalScreenshotUrl,
           status: 'pending',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          userBalanceBefore: balance
         });
         console.log('[Firestore DB] Deposit request written to deposits with screenshotUrl successfully.');
       } catch (dbErr) {
@@ -3051,6 +3054,7 @@ export default function App() {
       setTransactionAmount('');
       setTransactionId('');
       setScreenshotBase64(null);
+      setScreenshotFile(null);
       setSelectedDealerId('system');
       setDealerPaymentMethod(null);
       setSelectedMethod(null);
@@ -3135,6 +3139,28 @@ export default function App() {
       // Update in Appwrite - this will automatically update the proof status to 'approved'
       // AND credit the coins to the user's balance!
       await appwriteService.updatePaymentProofStatus(proofId, 'approved');
+
+      // Find the corresponding proof from state to get its userId if available
+      const correspondingProof = paymentProofs.find(p => p.id === proofId);
+      const userId = correspondingProof?.userId;
+
+      // Update in mock Firestore too
+      try {
+        await updateDoc(doc(db, 'deposits', proofId), { status: 'approved' });
+      } catch (err) {}
+      try {
+        await updateDoc(doc(db, 'depositRequests', proofId), { status: 'approved' });
+      } catch (err) {}
+
+      if (userId) {
+        try {
+          const userRef = doc(db, 'users', userId);
+          await updateDoc(userRef, {
+            balance: increment(amount)
+          });
+        } catch (err) {}
+      }
+
       addNotification(`Proof approved successfully!`, 'win');
       addNotification(`₹${amount} coins added to ${userEmail}!`, 'win');
 
@@ -3152,6 +3178,15 @@ export default function App() {
       
       // Update in Appwrite
       await appwriteService.updatePaymentProofStatus(proofId, 'rejected');
+
+      // Update in mock Firestore too
+      try {
+        await updateDoc(doc(db, 'deposits', proofId), { status: 'rejected' });
+      } catch (err) {}
+      try {
+        await updateDoc(doc(db, 'depositRequests', proofId), { status: 'rejected' });
+      } catch (err) {}
+
       addNotification(`Proof rejected successfully!`, 'info');
 
       // Refresh admin data
@@ -7404,6 +7439,7 @@ $$;`}
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
+                                      setScreenshotFile(file);
                                       const reader = new FileReader();
                                       reader.onloadend = () => setScreenshotBase64(reader.result as string);
                                       reader.readAsDataURL(file);
@@ -8000,6 +8036,7 @@ $$;`}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
+                                  setScreenshotFile(file);
                                   const reader = new FileReader();
                                   reader.onloadend = () => setScreenshotBase64(reader.result as string);
                                   reader.readAsDataURL(file);
