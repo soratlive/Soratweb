@@ -58,6 +58,15 @@ export async function signInWithGoogle() {
 }
 
 export async function logout() {
+  const { Capacitor } = await import('@capacitor/core');
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const GoogleAuthPlugin = (Capacitor as any).Plugins?.GoogleAuthPlugin;
+      await GoogleAuthPlugin.signOut();
+    } catch (e) {
+      console.warn("Native logout failed:", e);
+    }
+  }
   const { appwriteService } = await import('./appwrite');
   return await appwriteService.logout();
 }
