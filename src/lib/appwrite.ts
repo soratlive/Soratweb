@@ -131,7 +131,7 @@ export const appwriteService = {
               name: user.name || user.email?.split('@')[0] || 'Player',
               email: user.email,
               role: user.email === 'admin@sorat.live' || user.email === 'nikhilrv8055@gmail.com' ? 'admin' : 'user',
-              balance: 500.00 // Default starting balance
+              balance: 0.00 // Default starting balance is 0
             }
           );
         } catch (createErr) {
@@ -147,7 +147,7 @@ export const appwriteService = {
       email: user.email,
       displayName: user.name || user.email?.split('@')[0] || 'Player',
       role: userDoc?.role || (user.email === 'admin@sorat.live' || user.email === 'nikhilrv8055@gmail.com' ? 'admin' : 'user'),
-      balance: userDoc?.balance !== undefined ? userDoc.balance : 500.00
+      balance: userDoc?.balance !== undefined ? userDoc.balance : 0.00
     };
   },
 
