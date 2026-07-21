@@ -1,4 +1,6 @@
 import { Client, Account, Databases, Storage, ID, Query, OAuthProvider, Functions } from 'appwrite';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 // Read endpoints and project ID with explicit custom domain and project ID as requested
 const ENDPOINT = 'https://api.sorat.in/v1';
@@ -46,17 +48,37 @@ export const appwriteService = {
   signInWithGoogle: async (): Promise<void> => {
     try {
       console.log('[Appwrite Auth] Starting Google OAuth session...');
-      // Dynamically match browser context for the backup/production OAuth redirects saved in the console
-      const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-      const redirectUrl = currentOrigin && (currentOrigin.includes('sorat') || currentOrigin.includes('localhost') || currentOrigin.includes('run.app'))
-        ? currentOrigin
-        : 'https://play.sorat.in';
+      const isNative = Capacitor.isNativePlatform();
       
-      await account.createOAuth2Session(
-        OAuthProvider.Google,
-        redirectUrl,
-        redirectUrl
-      );
+      if (!isNative) {
+        // Web/PWA or local desktop browser context
+        const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+        const redirectUrl = currentOrigin && (currentOrigin.includes('sorat') || currentOrigin.includes('localhost') || currentOrigin.includes('run.app'))
+          ? currentOrigin
+          : 'https://play.sorat.in';
+        
+        // Use prompt=select_account in standard browser to allow switching/selecting from multiple logged-in accounts
+        const successWithPrompt = redirectUrl + (redirectUrl.endsWith('/') ? '' : '/') + '?prompt=select_account';
+        
+        await account.createOAuth2Session(
+          OAuthProvider.Google,
+          successWithPrompt,
+          redirectUrl
+        );
+      } else {
+        // ON MOBILE APK (Capacitor Native):
+        // 1. Construct the Appwrite OAuth URL manually
+        // 2. Add prompt=select_account so Google shows all Gmail accounts present on the device
+        // 3. Use the custom scheme of the app (com.sorat.game://) so it deep-links back into the APK
+        const appId = 'com.sorat.game';
+        const successUrl = `${appId}://oauth-success`;
+        const failureUrl = `${appId}://oauth-failure`;
+        
+        const oauthUrl = `${ENDPOINT}/account/oauth2/google?project=${PROJECT_ID}&scopes[]=email&scopes[]=profile&success=${encodeURIComponent(successUrl)}&failure=${encodeURIComponent(failureUrl)}&prompt=select_account`;
+        
+        console.log('[Appwrite Auth] Opening OAuth URL in Custom Tab / System Browser:', oauthUrl);
+        await Browser.open({ url: oauthUrl, windowName: '_system' });
+      }
     } catch (error) {
       console.error('[Appwrite Auth] Google OAuth failed:', error);
       throw error;
