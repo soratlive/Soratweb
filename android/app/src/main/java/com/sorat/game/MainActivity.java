@@ -1,12 +1,11 @@
-package com.sorat.game;
+package com.sorat.game
 
-import android.os.Bundle;
-import com.getcapacitor.BridgeActivity;
+import android.os.Bundle
+import com.getcapacitor.BridgeActivity
 
-public class MainActivity extends BridgeActivity {
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        registerPlugin(GoogleAuthPlugin.class);
+class MainActivity : BridgeActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        registerPlugin(GoogleAuthPlugin::class.java)
     }
 }
