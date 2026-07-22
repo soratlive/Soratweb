@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "259871631249",
+    "project_id": "sorat-c0327",
+    "storage_bucket": "sorat-c0327.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259871631249:android:6042cf0862ce6f62d3dc30",
+        "android_client_info": {
+          "package_name": "com.sorat.sorat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9OUkW7CHv5ZTn3XCihY0js2ALRyJHrQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259871631249:android:6042cf0862ce6f62d3dc30",
+        "android_client_info": {
+          "package_name": "com.sorat.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9OUkW7CHv5ZTn3XCihY0js2ALRyJHrQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
