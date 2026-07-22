@@ -2108,6 +2108,72 @@ export default function App() {
         setIsAuthLoading(true);
         console.log("[Appwrite Auth] Executing direct session verification check...");
         
+        if (Capacitor.isNativePlatform()) {
+          console.log("[Native Auth] Checking native Firebase session...");
+          try {
+            const GoogleAuthPlugin = (Capacitor as any).Plugins?.GoogleAuthPlugin;
+            const nativeResult = await GoogleAuthPlugin.getCurrentUser();
+            if (nativeResult && nativeResult.uid) {
+              console.log("[Native Auth] Active native user found:", nativeResult.email);
+              
+              // Fetch user profile from Firestore
+              let userProfileData: any = null;
+              try {
+                const userDocRef = doc(db, 'users', nativeResult.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                  userProfileData = userDocSnap.data();
+                  console.log("[Native Auth] Found Firestore user profile:", userProfileData);
+                }
+              } catch (profileErr) {
+                console.warn("[Native Auth] Failed to fetch Firestore user profile:", profileErr);
+              }
+
+              if (!userProfileData) {
+                // If profile doesn't exist, create one
+                const displayName = nativeResult.displayName || nativeResult.email?.split('@')[0] || 'Player';
+                userProfileData = {
+                  id: nativeResult.uid,
+                  userId: nativeResult.uid,
+                  email: nativeResult.email,
+                  displayName: displayName,
+                  name: displayName,
+                  balance: 0,
+                  role: (nativeResult.email === 'admin@sorat.live' || nativeResult.email === 'nikhilrv8055@gmail.com') ? 'admin' : 'user',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                };
+                try {
+                  await setDoc(doc(db, 'users', nativeResult.uid), userProfileData);
+                } catch (createErr) {
+                  console.warn("[Native Auth] Failed to create new user profile in Firestore:", createErr);
+                }
+              }
+
+              const resolvedUser = {
+                uid: nativeResult.uid,
+                email: nativeResult.email,
+                displayName: userProfileData?.displayName || nativeResult.displayName || nativeResult.email?.split('@')[0] || 'Player',
+                role: userProfileData?.role || 'user',
+                balance: userProfileData?.balance !== undefined ? userProfileData.balance : 0
+              };
+
+              setCurrentUser(resolvedUser as any);
+              setUserProfile(resolvedUser);
+              setBalance(resolvedUser.balance);
+              setIsDemoMode(false);
+              setDbConnectionStatus('Connected');
+              recordLoginLog(resolvedUser);
+              
+              setIsAuthModalOpen(false);
+              setIsAuthLoading(false);
+              return;
+            }
+          } catch (nativeErr) {
+            console.error("[Native Auth] Error checking native session:", nativeErr);
+          }
+        }
+        
         // OAuth Redirect Success Handling: Immediately execute account.get() (via getCurrentUser)
         const user = await appwriteService.getCurrentUser();
         
@@ -3839,10 +3905,84 @@ export default function App() {
     setIsAuthLoading(true);
     addNotification("Starting Google Sign-In...", 'info');
     try {
-      await appwriteService.signInWithGoogle();
+      if (Capacitor.isNativePlatform()) {
+        console.log("[Native Auth] Launching native Google Sign-In via Credential Manager...");
+        const serverClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "684722435546-lmhvbzchil62vo5rx2si7b.apps.googleusercontent.com"; // Web Client ID from Firebase!
+        
+        const GoogleAuthPlugin = (Capacitor as any).Plugins?.GoogleAuthPlugin;
+        const nativeResult = await GoogleAuthPlugin.signIn({
+          serverClientId: serverClientId,
+          autoSelect: true
+        });
+
+        if (nativeResult && nativeResult.uid) {
+          console.log("[Native Auth] Native login success:", nativeResult);
+          
+          // Fetch user profile from Firestore
+          let userProfileData: any = null;
+          try {
+            const userDocRef = doc(db, 'users', nativeResult.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+              userProfileData = userDocSnap.data();
+              console.log("[Native Auth] Found Firestore user profile:", userProfileData);
+            }
+          } catch (profileErr) {
+            console.warn("[Native Auth] Failed to fetch Firestore user profile:", profileErr);
+          }
+
+          if (!userProfileData) {
+            // If profile doesn't exist, create one
+            const displayName = nativeResult.displayName || nativeResult.email?.split('@')[0] || 'Player';
+            userProfileData = {
+              id: nativeResult.uid,
+              userId: nativeResult.uid,
+              email: nativeResult.email,
+              displayName: displayName,
+              name: displayName,
+              balance: 0,
+              role: (nativeResult.email === 'admin@sorat.live' || nativeResult.email === 'nikhilrv8055@gmail.com') ? 'admin' : 'user',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            try {
+              await setDoc(doc(db, 'users', nativeResult.uid), userProfileData);
+            } catch (createErr) {
+              console.warn("[Native Auth] Failed to create new user profile in Firestore:", createErr);
+            }
+          }
+
+          const resolvedUser = {
+            uid: nativeResult.uid,
+            email: nativeResult.email,
+            displayName: userProfileData?.displayName || nativeResult.displayName || nativeResult.email?.split('@')[0] || 'Player',
+            role: userProfileData?.role || 'user',
+            balance: userProfileData?.balance !== undefined ? userProfileData.balance : 0
+          };
+
+          setCurrentUser(resolvedUser as any);
+          setUserProfile(resolvedUser);
+          setBalance(resolvedUser.balance);
+          setIsDemoMode(false);
+          setDbConnectionStatus('Connected');
+          recordLoginLog(resolvedUser);
+          
+          setIsAuthModalOpen(false);
+          addNotification("Google Sign-In completed successfully! / लॉगइन सफल रहा!", "win");
+        } else {
+          addNotification("Native Sign-In failed: No user returned.", "info");
+        }
+      } else {
+        await appwriteService.signInWithGoogle();
+      }
     } catch (error: any) {
       console.error("[Google Login] Error:", error);
-      addNotification(error?.message || "Google Sign-In failed.", 'info');
+      const isCancellation = error?.message?.includes("User cancelled") || error?.code === "SIGN_IN_CANCELLED" || String(error).includes("cancelled");
+      if (isCancellation) {
+        addNotification("Sign-In cancelled.", 'info');
+      } else {
+        addNotification(error?.message || "Google Sign-In failed.", 'info');
+      }
     } finally {
       setIsAuthLoading(false);
     }
