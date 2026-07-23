@@ -5,15 +5,15 @@ const config: CapacitorConfig = {
   appName: 'Sorat',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
   },
   plugins: {
     GoogleAuth: {
       scopes: ['profile', 'email'],
-      serverClientId: '',
+      serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
       forceCodeForRefreshToken: true,
-    }
-  }
+    },
+  },
 };
 
 export default config;
