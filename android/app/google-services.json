@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "259871631249-sa24ub9pd2pv6oh7ligt7qfev0ili77n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sorat.game",
+            "certificate_hash": "208d6537ce1e959312f6e088cf2e1a2cbb3bf672"
+          }
+        },
+        {
           "client_id": "259871631249-j4h8qtqed6qv663gadkmsn4ljhl35dk2.apps.googleusercontent.com",
           "client_type": 3
         }
