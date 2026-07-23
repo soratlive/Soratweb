@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 export interface NativeGoogleUser {
@@ -10,22 +10,6 @@ export interface NativeGoogleUser {
   uid?: string;
 }
 
-export interface NativeGoogleAuthPlugin {
-  signIn(options: { serverClientId?: string; autoSelect?: boolean }): Promise<{
-    uid?: string;
-    email: string;
-    displayName: string;
-    photoUrl: string;
-    idToken: string;
-    accessToken?: string;
-  }>;
-  getCurrentUser(): Promise<NativeGoogleUser | null>;
-  signOut(): Promise<{ success: boolean }>;
-}
-
-// Register the custom Android CredentialManager plugin registered in MainActivity.kt
-const CustomGoogleAuth = registerPlugin<NativeGoogleAuthPlugin>('GoogleAuthPlugin');
-
 /**
  * Utility to check if running inside Android native Capacitor runtime.
  */
@@ -34,8 +18,8 @@ export const isAndroidNative = (): boolean => {
 };
 
 /**
- * Triggers native Google account picker on Android using Credential Manager / Google Identity Services.
- * Falls back to standard Capacitor GoogleAuth or returns null if on Web browser.
+ * Triggers native Google account picker on Android using standard Capacitor GoogleAuth.
+ * Falls back to null if on Web browser.
  */
 export const signInWithNativeGoogle = async (serverClientId?: string): Promise<NativeGoogleUser | null> => {
   if (!isAndroidNative()) {
@@ -46,43 +30,24 @@ export const signInWithNativeGoogle = async (serverClientId?: string): Promise<N
   const clientId = serverClientId || (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '1048684722435-client-id.apps.googleusercontent.com';
 
   try {
-    console.log('[NativeGoogleAuth] Attempting sign in via Android CredentialManager...');
-    const result = await CustomGoogleAuth.signIn({
-      serverClientId: clientId,
-      autoSelect: false,
-    });
+    GoogleAuth.initialize({
+      clientId: clientId,
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true,
+    }).catch(() => {});
 
+    const googleUser = await GoogleAuth.signIn();
     return {
-      idToken: result.idToken,
-      accessToken: result.accessToken,
-      email: result.email || null,
-      displayName: result.displayName || null,
-      photoUrl: result.photoUrl || null,
-      uid: result.uid,
+      idToken: googleUser.authentication?.idToken,
+      accessToken: googleUser.authentication?.accessToken,
+      email: googleUser.email || null,
+      displayName: googleUser.name || null,
+      photoUrl: googleUser.imageUrl || null,
+      uid: googleUser.id,
     };
-  } catch (customErr: any) {
-    console.warn('[NativeGoogleAuth] Custom GoogleAuthPlugin encountered an error, attempting standard Capacitor GoogleAuth fallback:', customErr);
-
-    try {
-      GoogleAuth.initialize({
-        clientId: clientId,
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true,
-      }).catch(() => {});
-
-      const googleUser = await GoogleAuth.signIn();
-      return {
-        idToken: googleUser.authentication?.idToken,
-        accessToken: googleUser.authentication?.accessToken,
-        email: googleUser.email || null,
-        displayName: googleUser.name || null,
-        photoUrl: googleUser.imageUrl || null,
-        uid: googleUser.id,
-      };
-    } catch (pluginErr: any) {
-      console.error('[NativeGoogleAuth] Native Google Sign-In failed:', pluginErr);
-      throw pluginErr;
-    }
+  } catch (pluginErr: any) {
+    console.error('[NativeGoogleAuth] Native Google Sign-In failed:', pluginErr);
+    throw pluginErr;
   }
 };
 
@@ -93,7 +58,13 @@ export const getCurrentNativeUser = async (): Promise<NativeGoogleUser | null> =
   if (!isAndroidNative()) return null;
 
   try {
-    return await CustomGoogleAuth.getCurrentUser();
+    const googleUser = await GoogleAuth.refresh();
+    return {
+      idToken: googleUser.accessToken,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+    };
   } catch {
     return null;
   }
@@ -106,10 +77,6 @@ export const signOutNativeGoogle = async (): Promise<void> => {
   if (!isAndroidNative()) return;
 
   try {
-    await CustomGoogleAuth.signOut();
-  } catch {
-    try {
-      await GoogleAuth.signOut();
-    } catch {}
-  }
+    await GoogleAuth.signOut();
+  } catch {}
 };
