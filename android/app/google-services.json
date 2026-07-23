@@ -7,31 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:259871631249:android:6042cf0862ce6f62d3dc30",
-        "android_client_info": {
-          "package_name": "com.sorat.sorat"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyC9OUkW7CHv5ZTn3XCihY0js2ALRyJHrQg"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:259871631249:android:6042cf0862ce6f62d3dc30",
+        "mobilesdk_app_id": "1:259871631249:android:82d5e4dba9a4a49ed3dc30",
         "android_client_info": {
           "package_name": "com.sorat.game"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "259871631249-j4h8qtqed6qv663gadkmsn4ljhl35dk2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC9OUkW7CHv5ZTn3XCihY0js2ALRyJHrQg"
@@ -39,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "259871631249-j4h8qtqed6qv663gadkmsn4ljhl35dk2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
